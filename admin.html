@@ -177,6 +177,17 @@
     .filter-btn:hover { border-color: #111; color: #111; }
     .filter-btn.active { background: #111; color: #fff; border-color: #111; }
 
+    .search-input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      font-size: 14px;
+      width: 200px;
+      transition: border-color 0.15s;
+    }
+
+    .search-input:focus { outline: none; border-color: #111; }
+
     @media (max-width: 600px) {
       .stats { grid-template-columns: repeat(2, 1fr); }
       header, .container { padding: 16px 20px; }
@@ -214,11 +225,12 @@
 
     <h2>Участники</h2>
 
-    <div style="display:flex; gap:8px; margin-bottom:16px;">
+    <div style="display:flex; gap:8px; margin-bottom:16px; align-items:center; flex-wrap:wrap;">
       <button class="filter-btn active" onclick="setFilter('all')">Все</button>
       <button class="filter-btn" onclick="setFilter('beginner')">Новички</button>
       <button class="filter-btn" onclick="setFilter('intermediate')">Средние</button>
       <button class="filter-btn" onclick="setFilter('pro')">Профи</button>
+      <input type="text" id="search-input" class="search-input" placeholder="Поиск по имени..." oninput="onSearch()">
     </div>
 
     <table>
@@ -242,6 +254,7 @@
   <script>
     const levelLabels = { beginner: 'Новичок', intermediate: 'Средний', pro: 'Профи' };
     let currentFilter = 'all';
+    let searchQuery = '';
     let allParticipants = [];
 
     function setFilter(filter) {
@@ -251,10 +264,19 @@
       renderTable();
     }
 
+    function onSearch() {
+      searchQuery = document.getElementById('search-input').value.toLowerCase();
+      renderTable();
+    }
+
     function renderTable() {
-      const filtered = currentFilter === 'all'
+      let filtered = currentFilter === 'all'
         ? allParticipants
         : allParticipants.filter(p => p.level === currentFilter);
+
+      if (searchQuery) {
+        filtered = filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
+      }
 
       const tbody = document.getElementById('participants-list');
       if (filtered.length === 0) {
