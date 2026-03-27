@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Турнир по Косынке</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f9f9f9;
+      color: #111;
+      line-height: 1.6;
+    }
+
+    /* Шапка */
+    header {
+      border-bottom: 1px solid #e0e0e0;
+      padding: 24px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header .logo {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    header nav a {
+      text-decoration: none;
+      color: #555;
+      font-size: 14px;
+      margin-left: 24px;
+    }
+
+    header nav a:hover {
+      color: #111;
+    }
+
+    /* Герой */
+    .hero {
+      max-width: 720px;
+      margin: 80px auto 0;
+      padding: 0 40px;
+      text-align: center;
+    }
+
+    .hero .badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #555;
+      background: #efefef;
+      border-radius: 100px;
+      padding: 4px 12px;
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: #555;
+      max-width: 480px;
+      margin: 0 auto 36px;
+    }
+
+    .hero .actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+      transition: opacity 0.15s;
+    }
+
+    .btn:hover {
+      opacity: 0.85;
+    }
+
+    .btn-primary {
+      background: #f60;
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: #111;
+      border: 1px solid #ddd;
+    }
+
+    /* Изображение */
+    .hero-image {
+      max-width: 680px;
+      margin: 56px auto 0;
+      padding: 0 40px;
+    }
+
+    .hero-image .card-preview {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 16px;
+      padding: 40px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      width: 60px;
+      height: 88px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .card:nth-child(even) {
+      margin-bottom: 16px;
+    }
+
+    /* О турнире */
+    .info {
+      max-width: 720px;
+      margin: 80px auto 0;
+      padding: 0 40px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .info-item {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .info-item .label {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 8px;
+    }
+
+    .info-item .value {
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    /* Форма */
+    .form-section {
+      max-width: 480px;
+      margin: 80px auto 0;
+      padding: 0 40px;
+    }
+
+    .form-section h2 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+
+    .form-section .subtitle {
+      color: #555;
+      font-size: 15px;
+      margin-bottom: 32px;
+    }
+
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #444;
+      margin-bottom: 6px;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      background: #fff;
+      color: #111;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: #111;
+    }
+
+    .field input.error,
+    .field select.error {
+      border-color: #e53;
+    }
+
+    .field .error-msg {
+      font-size: 12px;
+      color: #e53;
+      margin-top: 4px;
+    }
+
+    .form .btn-primary {
+      margin-top: 8px;
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .form .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    .form .btn-primary.loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    /* Таблица участников */
+    .participants-section {
+      max-width: 720px;
+      margin: 80px auto 0;
+      padding: 0 40px;
+    }
+
+    .participants-section h2 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    thead th {
+      text-align: left;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #888;
+      padding: 0 16px 12px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    tbody tr:last-child {
+      border-bottom: none;
+    }
+
+    tbody td {
+      padding: 12px 16px;
+      color: #333;
+    }
+
+    .level-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .level-beginner { background: #e8f5e9; color: #2e7d32; }
+    .level-intermediate { background: #fff8e1; color: #f57f17; }
+    .level-pro { background: #fce4ec; color: #c62828; }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #888;
+      font-size: 14px;
+    }
+
+    .btn-delete {
+      background: none;
+      border: none;
+      color: #bbb;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 0 4px;
+      transition: color 0.15s;
+    }
+
+    .btn-delete:hover {
+      color: #e53;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .toast.success { background: #1a1a1a; }
+    .toast.error { background: #e53; }
+
+    /* Подвал */
+    footer {
+      margin-top: 100px;
+      border-top: 1px solid #e0e0e0;
+      padding: 32px 40px;
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+    }
+
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 32px; }
+      .info { grid-template-columns: 1fr; }
+      header { padding: 16px 20px; }
+      .hero, .hero-image, .info, .form-section { padding: 0 20px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">♠ Косынка</div>
+    <nav>
+      <a href="#about">О турнире</a>
+      <a href="#register">Регистрация</a>
+    </nav>
+  </header>
+
+  <section class="hero">
+    <span class="badge">Открытый турнир · 2025</span>
+    <h1>Чемпионат по Косынке</h1>
+    <p>Соревнование для тех, кто умеет складывать карты. Покажи лучший результат и войди в историю.</p>
+    <div class="actions">
+      <a href="#register" class="btn btn-primary">Зарегистрироваться</a>
+      <a href="#about" class="btn btn-secondary">Узнать больше</a>
+    </div>
+  </section>
+
+  <div class="hero-image">
+    <div class="card-preview">
+      <div class="card">🂡</div>
+      <div class="card">🂮</div>
+      <div class="card">🂭</div>
+      <div class="card">🂫</div>
+      <div class="card">🂪</div>
+      <div class="card">🂩</div>
+      <div class="card">🂨</div>
+    </div>
+  </div>
+
+  <section class="info" id="about">
+    <div class="info-item">
+      <div class="label">Дата</div>
+      <div class="value">14 июня 2025</div>
+    </div>
+    <div class="info-item">
+      <div class="label">Формат</div>
+      <div class="value">Онлайн</div>
+    </div>
+    <div class="info-item">
+      <div class="label">Участников</div>
+      <div class="value"><span id="counter">—</span> / 128</div>
+    </div>
+  </section>
+
+  <section class="form-section" id="register">
+    <h2>Регистрация</h2>
+    <p class="subtitle">Заполни форму — мы пришлём подтверждение на почту.</p>
+    <form class="form" onsubmit="handleSubmit(event)">
+      <div class="field">
+        <label for="name">Имя</label>
+        <input type="text" id="name" placeholder="Иван Иванов" required>
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="ivan@example.com" required>
+      </div>
+      <div class="field">
+        <label for="level">Уровень</label>
+        <select id="level">
+          <option value="">Выбери уровень</option>
+          <option value="beginner">Новичок</option>
+          <option value="intermediate">Средний</option>
+          <option value="pro">Профи</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary">Подать заявку</button>
+    </form>
+  </section>
+
+  <section class="participants-section" id="participants">
+    <h2>Участники</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Имя</th>
+          <th>Email</th>
+          <th>Уровень</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="participants-list">
+        <tr><td colspan="4" class="empty-state">Загрузка...</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <div class="toast" id="toast"></div>
+
+  <footer>
+    © 2025 Турнир по Косынке · Все права защищены
+  </footer>
+
+  <script>
+    const levelLabels = { beginner: 'Новичок', intermediate: 'Средний', pro: 'Профи' };
+
+    async function loadParticipants() {
+      try {
+        const res = await fetch('http://localhost:8000/participants');
+        const data = await res.json();
+
+        document.getElementById('counter').textContent = data.length;
+
+        const tbody = document.getElementById('participants-list');
+        if (data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Пока никто не зарегистрировался</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.map((p, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${p.name}</td>
+            <td>${p.email}</td>
+            <td><span class="level-badge level-${p.level}">${levelLabels[p.level] || p.level}</span></td>
+            <td><button class="btn-delete" onclick="deleteParticipant('${p.email}')" title="Удалить">✕</button></td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        document.getElementById('counter').textContent = '?';
+        document.getElementById('participants-list').innerHTML =
+          '<tr><td colspan="4" class="empty-state">Сервер недоступен</td></tr>';
+      }
+    }
+
+    loadParticipants();
+
+    function showToast(msg, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.className = `toast ${type} show`;
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    async function deleteParticipant(email) {
+      if (!confirm('Удалить участника?')) return;
+      await fetch(`http://localhost:8000/participants/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      loadParticipants();
+    }
+
+    function showError(id, msg) {
+      const input = document.getElementById(id);
+      input.classList.add('error');
+      let err = input.parentElement.querySelector('.error-msg');
+      if (!err) {
+        err = document.createElement('div');
+        err.className = 'error-msg';
+        input.parentElement.appendChild(err);
+      }
+      err.textContent = msg;
+    }
+
+    function clearErrors() {
+      document.querySelectorAll('.field input, .field select').forEach(el => {
+        el.classList.remove('error');
+        const err = el.parentElement.querySelector('.error-msg');
+        if (err) err.textContent = '';
+      });
+    }
+
+    function validate() {
+      clearErrors();
+      let valid = true;
+
+      const name = document.getElementById('name').value.trim();
+      if (!name) {
+        showError('name', 'Введите имя');
+        valid = false;
+      }
+
+      const email = document.getElementById('email').value.trim();
+      if (!email) {
+        showError('email', 'Введите email');
+        valid = false;
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showError('email', 'Неверный формат email');
+        valid = false;
+      }
+
+      const level = document.getElementById('level').value;
+      if (!level) {
+        showError('level', 'Выберите уровень');
+        valid = false;
+      }
+
+      return valid;
+    }
+
+    async function handleSubmit(e) {
+      e.preventDefault();
+
+      if (!validate()) return;
+
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.classList.add('loading');
+      btn.innerHTML = '<span class="spinner"></span>Отправляем...';
+
+      const body = {
+        name: document.getElementById('name').value,
+        email: document.getElementById('email').value,
+        level: document.getElementById('level').value || 'beginner',
+      };
+
+      try {
+        const res = await fetch('http://localhost:8000/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        showToast(data.message, data.success ? 'success' : 'error');
+
+        if (data.success) {
+          e.target.reset();
+          loadParticipants();
+        }
+      } catch (err) {
+        showToast('Ошибка соединения с сервером', 'error');
+      } finally {
+        btn.classList.remove('loading');
+        btn.innerHTML = 'Подать заявку';
+      }
+    }
+  </script>
+
+</body>
+</html>
