@@ -37,6 +37,11 @@ python3 -m uvicorn server:app --host 0.0.0.0 --port 8000
   - Конфиг: ~/.claude/.mcp.json и VS Code settings.json (claude.mcpServers)
   - Playwright работает в терминале, Context7 — в VS Code extension
   - Bash tool: open команда открывает браузер и Finder без Playwright
+- **Хуки на практике** — создание Stop хука с afplay, понимание hook событий и типов
+- **Работа с git через Claude** — init, add, commit, checkout, merge, history
+  - Создали репо, первый коммит, ветку feature/footer, слияние в main
+  - Конфиг git user.name и user.email
+  - Понимание diff и git log
 
 ### Что практиковали
 Построили сайт турнира по косынке с нуля:
@@ -45,7 +50,11 @@ python3 -m uvicorn server:app --host 0.0.0.0 --port 8000
 - Страница админа со статистикой и фильтрацией по уровню
 
 ### Что осталось изучить (продвинутый уровень)
-- **Хуки на практике** ← следующий шаг
-- Работа с git через Claude
-- Агенты
+- **Агенты** ← следующий шаг
 - Рабочий процесс: как формулировать задачи, Plan mode
+- GitHub: push, pull, PR, ветки (следующая часть git обучения)
+
+### Заметки для следующей сессии
+- Уменьшить использование skills для простых операций (Read/Edit достаточно)
+- Проверять `/context` перед дорогими операциями
+- VS Code extension имеет высокий baseline из-за tool definitions
