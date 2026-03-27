@@ -188,6 +188,8 @@
 
     .search-input:focus { outline: none; border-color: #111; }
 
+    .date-cell { color: #888; font-size: 13px; }
+
     @media (max-width: 600px) {
       .stats { grid-template-columns: repeat(2, 1fr); }
       header, .container { padding: 16px 20px; }
@@ -233,6 +235,13 @@
       <input type="text" id="search-input" class="search-input" placeholder="Поиск по имени..." oninput="onSearch()">
     </div>
 
+    <div style="display:flex; gap:8px; margin-bottom:16px; align-items:center; flex-wrap:wrap;">
+      <button class="filter-btn active date-filter-btn" onclick="setDateFilter('all')">Все даты</button>
+      <button class="filter-btn date-filter-btn" onclick="setDateFilter('today')">Сегодня</button>
+      <button class="filter-btn date-filter-btn" onclick="setDateFilter('7days')">7 дней</button>
+      <button class="filter-btn date-filter-btn" onclick="setDateFilter('30days')">30 дней</button>
+    </div>
+
     <table>
       <thead>
         <tr>
@@ -240,6 +249,7 @@
           <th>Имя</th>
           <th>Email</th>
           <th>Уровень</th>
+          <th>Дата</th>
           <th></th>
         </tr>
       </thead>
@@ -255,6 +265,7 @@
     const levelLabels = { beginner: 'Новичок', intermediate: 'Средний', pro: 'Профи' };
     let currentFilter = 'all';
     let searchQuery = '';
+    let dateFilter = 'all';
     let allParticipants = [];
 
     function setFilter(filter) {
@@ -269,6 +280,19 @@
       renderTable();
     }
 
+    function formatDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function setDateFilter(range) {
+      dateFilter = range;
+      document.querySelectorAll('.date-filter-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      renderTable();
+    }
+
     function renderTable() {
       let filtered = currentFilter === 'all'
         ? allParticipants
@@ -278,9 +302,19 @@
         filtered = filtered.filter(p => p.name.toLowerCase().includes(searchQuery));
       }
 
+      if (dateFilter !== 'all') {
+        const now = new Date();
+        const days = dateFilter === 'today' ? 0 : dateFilter === '7days' ? 7 : 30;
+        const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
+        filtered = filtered.filter(p => {
+          if (!p.registered_at) return false;
+          return new Date(p.registered_at) >= cutoff;
+        });
+      }
+
       const tbody = document.getElementById('participants-list');
       if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Нет участников</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Нет участников</td></tr>';
         return;
       }
       tbody.innerHTML = filtered.map((p, i) => `
@@ -289,6 +323,7 @@
           <td>${p.name}</td>
           <td>${p.email}</td>
           <td><span class="level-badge level-${p.level}">${levelLabels[p.level] || p.level}</span></td>
+          <td class="date-cell">${formatDate(p.registered_at)}</td>
           <td><button class="btn-delete" onclick="deleteParticipant('${p.email}')" title="Удалить">✕</button></td>
         </tr>
       `).join('');

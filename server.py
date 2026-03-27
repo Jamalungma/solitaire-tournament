@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from datetime import datetime, timezone
 import json
 import os
 
@@ -44,7 +45,9 @@ def register(participant: Participant):
         if p["email"] == participant.email:
             return {"success": False, "message": "Этот email уже зарегистрирован"}
 
-    participants.append(participant.dict())
+    entry = participant.dict()
+    entry["registered_at"] = datetime.now(timezone.utc).isoformat()
+    participants.append(entry)
     save_participants(participants)
 
     return {"success": True, "message": f"{participant.name}, заявка принята!"}
