@@ -177,6 +177,21 @@
     .filter-btn:hover { border-color: #111; color: #111; }
     .filter-btn.active { background: #111; color: #fff; border-color: #111; }
 
+    .btn-export {
+      padding: 6px 16px;
+      border-radius: 100px;
+      border: 1px solid #111;
+      background: #111;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-export:hover { background: #333; border-color: #333; }
+
     .search-input {
       padding: 8px 12px;
       border-radius: 8px;
@@ -242,6 +257,10 @@
       <button class="filter-btn date-filter-btn" onclick="setDateFilter('30days')">30 дней</button>
     </div>
 
+    <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+      <button class="btn-export" onclick="exportCSV()">Скачать CSV</button>
+    </div>
+
     <table>
       <thead>
         <tr>
@@ -266,6 +285,7 @@
     let currentFilter = 'all';
     let searchQuery = '';
     let dateFilter = 'all';
+    let lastFiltered = [];
     let allParticipants = [];
 
     function setFilter(filter) {
@@ -311,6 +331,8 @@
           return new Date(p.registered_at) >= cutoff;
         });
       }
+
+      lastFiltered = filtered;
 
       const tbody = document.getElementById('participants-list');
       if (filtered.length === 0) {
@@ -359,6 +381,35 @@
       await fetch(`http://localhost:8000/participants/${encodeURIComponent(email)}`, { method: 'DELETE' });
       showToast('Участник удалён');
       loadParticipants();
+    }
+
+    function exportCSV() {
+      if (lastFiltered.length === 0) {
+        showToast('Нет данных для экспорта', 'error');
+        return;
+      }
+
+      const header = ['Имя', 'Email', 'Уровень', 'Дата'];
+      const levelMap = { beginner: 'Новичок', intermediate: 'Средний', pro: 'Профи' };
+
+      const rows = lastFiltered.map(p => [
+        `"${(p.name || '').replace(/"/g, '""')}"`,
+        `"${(p.email || '').replace(/"/g, '""')}"`,
+        `"${levelMap[p.level] || p.level || ''}"`,
+        `"${formatDate(p.registered_at)}"`
+      ]);
+
+      const csv = [header, ...rows].map(r => r.join(',')).join('\r\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'participants.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+
+      showToast(`Экспортировано ${lastFiltered.length} участников`);
     }
 
     loadParticipants();
