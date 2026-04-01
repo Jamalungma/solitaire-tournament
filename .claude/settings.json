@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(claude --resume)",
+      "Read(//Users/tairenverov/.claude/projects/**)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(afplay /System/Library/Sounds/Glass.aiff)",
+      "Bash(echo \"exit: $?\")"
+    ],
+    "additionalDirectories": [
+      "/Users/tairenverov/.claude"
+    ]
+  }
+}

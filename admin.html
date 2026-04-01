@@ -355,7 +355,7 @@
 
     async function loadParticipants() {
       try {
-        const res = await fetch('http://localhost:8000/participants');
+        const res = await fetch('/participants');
         const data = await res.json();
 
         document.getElementById('stat-total').textContent = data.length;
@@ -373,7 +373,7 @@
 
     async function deleteParticipant(email) {
       if (!confirm('Удалить участника?')) return;
-      await fetch(`http://localhost:8000/participants/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      await fetch(`/participants/${encodeURIComponent(email)}`, { method: 'DELETE' });
       showToast('Участник удалён');
       loadParticipants();
     }

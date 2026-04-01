@@ -497,7 +497,7 @@
 
     async function loadParticipants() {
       try {
-        const res = await fetch('http://localhost:8000/participants');
+        const res = await fetch('/participants');
         const data = await res.json();
 
         document.getElementById('counter').textContent = data.length;
@@ -534,7 +534,7 @@
 
     async function deleteParticipant(email) {
       if (!confirm('Удалить участника?')) return;
-      await fetch(`http://localhost:8000/participants/${encodeURIComponent(email)}`, { method: 'DELETE' });
+      await fetch(`/participants/${encodeURIComponent(email)}`, { method: 'DELETE' });
       loadParticipants();
     }
 
@@ -602,7 +602,7 @@
       };
 
       try {
-        const res = await fetch('http://localhost:8000/register', {
+        const res = await fetch('/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
