@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from datetime import datetime, timezone
-import json
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import os
 
 app = FastAPI()
@@ -22,33 +23,55 @@ class Participant(BaseModel):
     email: str
     level: str
 
-STORAGE_FILE = "participants.json"
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-def load_participants():
-    if not os.path.exists(STORAGE_FILE):
-        return []
-    with open(STORAGE_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+def get_db():
+    """Открывает соединение с базой данных"""
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
-def save_participants(data):
-    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def init_db():
+    """Создаёт таблицу, если её нет"""
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS participants (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            level TEXT NOT NULL,
+            registered_at TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# Инициализируем БД при запуске приложения
+if DATABASE_URL:
+    init_db()
 
 
 # POST /register — принять заявку
 @app.post("/register")
 def register(participant: Participant):
-    participants = load_participants()
+    conn = get_db()
+    cur = conn.cursor()
 
     # Проверка на дубликат email
-    for p in participants:
-        if p["email"] == participant.email:
-            return {"success": False, "message": "Этот email уже зарегистрирован"}
+    cur.execute("SELECT email FROM participants WHERE email = %s", (participant.email,))
+    if cur.fetchone():
+        cur.close()
+        conn.close()
+        return {"success": False, "message": "Этот email уже зарегистрирован"}
 
-    entry = participant.dict()
-    entry["registered_at"] = datetime.now(timezone.utc).isoformat()
-    participants.append(entry)
-    save_participants(participants)
+    registered_at = datetime.now(timezone.utc).isoformat()
+    cur.execute(
+        "INSERT INTO participants (name, email, level, registered_at) VALUES (%s, %s, %s, %s)",
+        (participant.name, participant.email, participant.level, registered_at)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
 
     return {"success": True, "message": f"{participant.name}, заявка принята!"}
 
@@ -56,17 +79,28 @@ def register(participant: Participant):
 # GET /participants — список всех участников
 @app.get("/participants")
 def get_participants():
-    return load_participants()
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT name, email, level, registered_at FROM participants")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [dict(row) for row in rows]
 
 
 # DELETE /participants/{email} — удалить участника
 @app.delete("/participants/{email}")
 def delete_participant(email: str):
-    participants = load_participants()
-    filtered = [p for p in participants if p["email"] != email]
-    if len(filtered) == len(participants):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM participants WHERE email = %s RETURNING email", (email,))
+    deleted = cur.fetchone()
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    if not deleted:
         return {"success": False, "message": "Участник не найден"}
-    save_participants(filtered)
     return {"success": True, "message": "Участник удалён"}
 
 

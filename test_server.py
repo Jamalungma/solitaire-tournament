@@ -1,8 +1,24 @@
 from fastapi.testclient import TestClient
-from server import app
+from server import app, get_db
 import time
+import pytest
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def clean_db():
+    """Очищает таблицу перед каждым тестом для изоляции"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM participants")
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception:
+        # Если БД не настроена, пропускаем очистку
+        pass
+    yield
 
 def unique_email(prefix="test"):
     """Генерирует уникальный email используя текущее время"""
