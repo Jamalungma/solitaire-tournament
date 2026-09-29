@@ -114,13 +114,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   </section>
 
   <section class="ticket" aria-labelledby="bet-h">
-    <h2 id="bet-h">Ваша ставка</h2>
+    <h2 id="bet-h">Сделать ставку</h2>
+    <p id="ro-note" class="hint" hidden>Вы смотрите табло. Чтобы поставить, скажите имя и минуты ведущему: он внесёт ставку, и она сразу появится здесь.</p>
     <form id="bet-form" class="row" novalidate>
       <div class="grow"><label for="name">Имя</label><input id="name" maxlength="30" autocomplete="nickname" placeholder="Как вас зовут"></div>
       <div style="flex:0 1 110px;min-width:0"><label for="minutes">Минут</label><input id="minutes" type="number" inputmode="numeric" min="1" max="300" step="1" placeholder="25"></div>
       <button id="bet-btn" class="primary" type="submit">Поставить</button>
     </form>
-    <p id="bet-hint" class="hint">Побеждает тот, чья ставка ближе всего к реальному времени. Одна ставка на человека, её можно менять.</p>
+    <p id="bet-hint" class="hint">Можно ставить за себя или за коллегу. Если имя уже есть в списке, его ставка обновится. Побеждает ставка, ближе всех к реальному времени.</p>
   </section>
 
   <section class="ticket" aria-labelledby="board-h">
@@ -150,11 +151,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   let round = { status: "open", orderedAt: null, servedAt: null, hero: "", prize: "" };
   let bets = [];
   let history = [];
-  let myId = LS.get("lunchbet.myId");
+  let canWrite = null; // null = platform said nothing: keep controls, let writes decide
+  let armedDelete = null;
   let resetArmed = false;
 
   $("today").textContent = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
-  $("name").value = LS.get("lunchbet.name") || "";
 
   const fmt = (sec) => {
     sec = Math.max(0, Math.floor(sec));
@@ -187,8 +188,9 @@ button:disabled { opacity: .45; cursor: not-allowed; }
     try { await fn(); return true; }
     catch (e) {
       const code = e && e.code;
+      if (code === "invalid_argument" || code === "not_granted") { canWrite = false; renderAll(); }
       const msg = code === "invalid_argument" || code === "not_granted"
-        ? "Сохранить не получилось: у вас доступ только на просмотр. Попросите автора страницы выдать доступ «Contributor»."
+        ? "У вас доступ только на просмотр. Скажите свою ставку ведущему, он внесёт её за вас."
         : code === "quota_exceeded" ? "Хранилище заполнено. Начните новый раунд, чтобы очистить ставки."
         : "Не удалось сохранить. Проверьте интернет и попробуйте ещё раз.";
       hint(where, msg, true);
@@ -218,6 +220,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 
     const c = $("controls");
     c.replaceChildren();
+    $("hero").disabled = $("prize").disabled = canWrite === false;
+    if (canWrite === false) return;
     const btn = (text, cls, onClick) => { const b = document.createElement("button"); b.type = "button"; b.textContent = text; if (cls) b.className = cls; b.onclick = onClick; c.appendChild(b); return b; };
     if (round.status === "open") {
       btn("Заказ принят", "primary", () => startCooking(0));
@@ -230,13 +234,17 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   }
 
   function renderForm() {
-    const mine = bets.find((b) => b.id === myId);
     const closed = round.status === "served";
-    $("bet-btn").textContent = mine ? "Изменить" : "Поставить";
+    const ro = canWrite === false;
+    $("bet-form").hidden = ro;
+    $("bet-hint").hidden = ro;
+    $("ro-note").hidden = !ro;
+    const n = $("name").value.trim().toLowerCase();
+    $("bet-btn").textContent = n && bets.some((b) => b.name.toLowerCase() === n) ? "Обновить" : "Поставить";
     $("bet-btn").disabled = closed || !db;
     $("minutes").disabled = closed;
-    if (mine && document.activeElement !== $("minutes") && !$("minutes").value) $("minutes").value = mine.minutes;
   }
+  $("name").addEventListener("input", renderForm);
 
   function renderBets() {
     const list = $("bets");
@@ -262,10 +270,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
       const right = document.createElement("span");
       if (win.has(b.id)) { right.className = "tag"; right.textContent = "Победа"; }
       else if (round.status === "served") { right.className = "tag"; right.textContent = "±" + fmt(Math.abs(b.minutes * 60 - e)); }
-      else if (b.id === myId) {
-        const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "убрать";
-        x.setAttribute("aria-label", "Убрать мою ставку"); x.onclick = removeMine; right.appendChild(x);
-      } else { right.className = "tag"; right.textContent = b.id === myId ? "вы" : ""; }
+      else if (canWrite !== false) {
+        const x = document.createElement("button"); x.type = "button"; x.className = "x";
+        x.textContent = armedDelete === b.id ? "точно?" : "убрать";
+        x.setAttribute("aria-label", "Убрать ставку: " + b.name); x.onclick = () => removeBet(b.id); right.appendChild(x);
+      }
       li.append(m, who, right);
       list.appendChild(li);
     }
@@ -364,23 +373,24 @@ button:disabled { opacity: .45; cursor: not-allowed; }
       return hint(h, `Уже прошло ${fmt(e)}. Ставка должна быть минимум на ${Math.ceil(e / 60) + 1} ${minWord(Math.ceil(e / 60) + 1)}.`, true);
     }
     if (round.status === "served") return hint(h, "Раунд закончен. Начните новый, чтобы снова делать ставки.", true);
-    LS.set("lunchbet.name", name);
-    if (!myId || !bets.some((b) => b.id === myId)) {
-      const taken = bets.find((b) => b.name.toLowerCase() === name.toLowerCase());
-      if (taken) return hint(h, `Имя «${taken.name}» уже занято. Добавьте фамилию или инициал.`, true);
-    }
-    const ref = myId ? db.doc("bets/" + myId) : db.collection("bets").doc();
-    const ok = await safe(() => ref.set({ name, minutes, at: Date.now(), placedAtSec: round.status === "cooking" ? Math.round(e) : null }), h);
+    const existing = bets.find((b) => b.name.toLowerCase() === name.toLowerCase());
+    const ref = existing ? db.doc("bets/" + existing.id) : db.collection("bets").doc();
+    const ok = await safe(() => ref.set({ name: existing ? existing.name : name, minutes, at: Date.now(), placedAtSec: round.status === "cooking" ? Math.round(e) : null }), h);
     if (ok) {
-      myId = ref.id; LS.set("lunchbet.myId", myId);
-      hint(h, `Принято: ${name} ставит на ${minutes} ${minWord(minutes)}.`);
+      $("name").value = ""; $("minutes").value = ""; $("name").focus();
+      hint(h, `${existing ? "Обновлено" : "Принято"}: ${existing ? existing.name : name} ставит на ${minutes} ${minWord(minutes)}.`);
     }
   });
 
-  async function removeMine() {
-    if (!db || !myId) return;
-    const ok = await safe(() => db.doc("bets/" + myId).delete(), $("bet-hint"));
-    if (ok) { $("minutes").value = ""; hint($("bet-hint"), "Ставка убрана."); }
+  async function removeBet(id) {
+    if (!db) return;
+    if (armedDelete !== id) {
+      armedDelete = id; renderBets();
+      setTimeout(() => { if (armedDelete === id) { armedDelete = null; renderBets(); } }, 3000);
+      return;
+    }
+    armedDelete = null;
+    await safe(() => db.doc("bets/" + id).delete(), $("bet-hint"));
   }
 
   /* ---------- boot ---------- */
@@ -392,6 +402,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
     if (!d) { banner("Ставки не подключились. Откройте страницу по ссылке в claude.ai и войдите в аккаунт."); $("bet-btn").disabled = true; return; }
     db = d;
     renderForm();
+    const um = window.claude.use("user");
+    um.then(async (u) => {
+      const w = u ? await u.can("data.write") : null;
+      if (w === false) { canWrite = false; renderAll(); }
+    });
     db.doc("game/round").onSnapshot((s) => {
       const data = s.exists ? s.data() : null;
       round = data ? { status: "open", orderedAt: null, servedAt: null, hero: "", prize: "", ...data } : { status: "open", orderedAt: null, servedAt: null, hero: "", prize: "" };
