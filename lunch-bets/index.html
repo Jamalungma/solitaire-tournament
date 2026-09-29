@@ -1,0 +1,411 @@
+<title>Когда принесут?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&family=Rubik:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one column of kitchen tickets on a steel pass; the timer ticket is the hero. */
+:root {
+  --steel: #dfe3e6;
+  --paper: #ffffff;
+  --ink: #1d2328;
+  --muted: #66707a;
+  --line: #c9cfd4;
+  --mustard: #f2b705;
+  --mustard-ink: #1d2328;
+  --win: #1f7a4d;
+  --win-bg: #e3f3ea;
+  --off: #b3261e;
+  --display: "Rubik Mono One", "Rubik", system-ui, sans-serif;
+  --body: "Rubik", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --steel: #14181b; --paper: #20262b; --ink: #eef1f3; --muted: #9aa4ad; --line: #353d44;
+    --mustard: #f5c02e; --mustard-ink: #14181b; --win: #6fd3a0; --win-bg: #173226; --off: #ff8a80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --steel: #14181b; --paper: #20262b; --ink: #eef1f3; --muted: #9aa4ad; --line: #353d44;
+  --mustard: #f5c02e; --mustard-ink: #14181b; --win: #6fd3a0; --win-bg: #173226; --off: #ff8a80;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--steel); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.45; }
+.wrap { max-width: 560px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: flex; flex-direction: column; gap: 18px; }
+
+.ticket { background: var(--paper); padding: 20px; position: relative; box-shadow: 0 1px 0 var(--line); }
+.ticket.torn::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px;
+  background: linear-gradient(-45deg, transparent 6px, var(--paper) 0) 0 0 / 12px 8px repeat-x,
+              linear-gradient(45deg, transparent 6px, var(--paper) 0) 0 0 / 12px 8px repeat-x;
+}
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+h1 { font-family: var(--display); font-weight: 400; font-size: clamp(24px, 7vw, 34px); line-height: 1.1; margin: 10px 0 14px; text-wrap: balance; }
+h2 { font-family: var(--display); font-weight: 400; font-size: 16px; margin: 0 0 12px; letter-spacing: .02em; }
+.dash { border: 0; border-top: 2px dashed var(--line); margin: 16px 0; }
+
+label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+input { width: 100%; font: inherit; color: var(--ink); background: transparent; border: 0; border-bottom: 2px solid var(--line); padding: 6px 0; border-radius: 0; }
+input:focus { outline: none; border-bottom-color: var(--mustard); }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 440px) { .fields { grid-template-columns: 1fr; } }
+
+button { font: inherit; font-weight: 700; cursor: pointer; border: 2px solid var(--ink); background: var(--paper); color: var(--ink); padding: 10px 16px; border-radius: 0; }
+button.primary { background: var(--mustard); color: var(--mustard-ink); border-color: var(--mustard); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--mustard); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.row > .grow { flex: 1 1 140px; min-width: 0; }
+
+.clock { font-family: var(--mono); font-weight: 700; font-size: clamp(56px, 20vw, 96px); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; margin: 6px 0 4px; }
+.status { font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: .1em; display: inline-block; padding: 3px 8px; background: var(--ink); color: var(--paper); }
+.status.cooking { background: var(--mustard); color: var(--mustard-ink); }
+.status.served { background: var(--win); color: var(--paper); }
+.sub { color: var(--muted); font-size: 14px; margin: 8px 0 14px; }
+
+.hint { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.err { color: var(--off); }
+
+.bets { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.bets li { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px dotted var(--line); }
+.bets .min { font-weight: 700; font-size: 18px; }
+.bets .who { font-family: var(--body); min-width: 0; overflow-wrap: anywhere; }
+.bets .who small { color: var(--muted); font-family: var(--mono); font-size: 11px; display: block; }
+.bets .tag { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.bets li.past .min { text-decoration: line-through; color: var(--muted); }
+.bets li.winner { background: var(--win-bg); margin-inline: -20px; padding-inline: 20px; }
+.bets li.winner .tag { color: var(--win); font-weight: 700; }
+.bets li.now { grid-template-columns: 1fr; border-bottom: 2px solid var(--mustard); padding: 4px 0; color: var(--ink); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
+.bets li.now span { background: var(--mustard); color: var(--mustard-ink); padding: 2px 6px; justify-self: start; }
+.x { border: 0; padding: 4px 8px; background: transparent; color: var(--muted); font-weight: 400; }
+.empty { color: var(--muted); font-size: 14px; }
+
+.result { background: var(--win-bg); padding: 14px; margin-bottom: 14px; }
+.result b { font-family: var(--display); font-weight: 400; font-size: 18px; display: block; margin-bottom: 4px; }
+
+.history { list-style: none; margin: 0; padding: 0; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+.history li { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.history .t { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.foot { font-size: 12px; color: var(--muted); text-align: center; }
+.banner { background: var(--ink); color: var(--paper); padding: 10px 14px; font-size: 14px; }
+@media (prefers-reduced-motion: no-preference) { .clock.tick { transition: color .3s; } }
+</style>
+
+<div class="wrap">
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="ticket torn" aria-labelledby="t-title">
+    <div class="eyebrow"><span>Заказ на кухне</span><span id="today"></span></div>
+    <h1 id="t-title">Когда принесут еду <span id="hero-title">коллеге</span>?</h1>
+    <div class="fields">
+      <div><label for="hero">Чей заказ ждём</label><input id="hero" maxlength="40" placeholder="Имя коллеги"></div>
+      <div><label for="prize">На что спорим</label><input id="prize" maxlength="80" placeholder="Например: проигравшие берут десерт"></div>
+    </div>
+  </section>
+
+  <section class="ticket" aria-labelledby="clock-h">
+    <div class="eyebrow"><span id="clock-h">С момента заказа</span><span id="status" class="status">Ждём заказа</span></div>
+    <div id="clock" class="clock" aria-live="off">00:00</div>
+    <p id="sub" class="sub">Когда официант примет заказ, нажмите «Заказ принят». Ставки можно делать уже сейчас.</p>
+    <div id="controls" class="row"></div>
+    <p id="ctl-hint" class="hint"></p>
+  </section>
+
+  <section class="ticket" aria-labelledby="bet-h">
+    <h2 id="bet-h">Ваша ставка</h2>
+    <form id="bet-form" class="row" novalidate>
+      <div class="grow"><label for="name">Имя</label><input id="name" maxlength="30" autocomplete="nickname" placeholder="Как вас зовут"></div>
+      <div style="flex:0 1 110px;min-width:0"><label for="minutes">Минут</label><input id="minutes" type="number" inputmode="numeric" min="1" max="300" step="1" placeholder="25"></div>
+      <button id="bet-btn" class="primary" type="submit">Поставить</button>
+    </form>
+    <p id="bet-hint" class="hint">Побеждает тот, чья ставка ближе всего к реальному времени. Одна ставка на человека, её можно менять.</p>
+  </section>
+
+  <section class="ticket" aria-labelledby="board-h">
+    <div class="eyebrow" style="margin-bottom:10px"><span id="board-h">Ставки</span><span id="count">0</span></div>
+    <div id="result" class="result" hidden></div>
+    <ul id="bets" class="bets"></ul>
+    <p id="bets-empty" class="empty">Ставок пока нет. Первым может стать любой: введите имя и сколько минут, по-вашему, будут готовить.</p>
+  </section>
+
+  <section class="ticket" aria-labelledby="hist-h" id="hist-box" hidden>
+    <h2 id="hist-h">Прошлые обеды</h2>
+    <ul id="history" class="history"></ul>
+  </section>
+
+  <p class="foot">Все видят одни и те же ставки в реальном времени. Спорим не на деньги.</p>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const LS = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+
+  let db = null;
+  let round = { status: "open", orderedAt: null, servedAt: null, hero: "", prize: "" };
+  let bets = [];
+  let history = [];
+  let myId = LS.get("lunchbet.myId");
+  let resetArmed = false;
+
+  $("today").textContent = new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+  $("name").value = LS.get("lunchbet.name") || "";
+
+  const fmt = (sec) => {
+    sec = Math.max(0, Math.floor(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const p = (n) => String(n).padStart(2, "0");
+    return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+  };
+  const minWord = (n) => {
+    const a = Math.abs(n) % 100, b = a % 10;
+    if (a > 10 && a < 20) return "минут";
+    if (b === 1) return "минута";
+    if (b >= 2 && b <= 4) return "минуты";
+    return "минут";
+  };
+  const elapsed = () => {
+    if (!round.orderedAt) return 0;
+    const end = round.status === "served" && round.servedAt ? round.servedAt : Date.now();
+    return (end - round.orderedAt) / 1000;
+  };
+  const winners = () => {
+    if (round.status !== "served" || !bets.length) return [];
+    const total = elapsed();
+    const best = Math.min(...bets.map((b) => Math.abs(b.minutes * 60 - total)));
+    return bets.filter((b) => Math.abs(b.minutes * 60 - total) === best);
+  };
+
+  function banner(text) { $("banner").textContent = text; $("banner").hidden = !text; }
+  function hint(el, text, isErr) { el.textContent = text; el.classList.toggle("err", !!isErr); }
+  async function safe(fn, where) {
+    try { await fn(); return true; }
+    catch (e) {
+      const code = e && e.code;
+      const msg = code === "invalid_argument" || code === "not_granted"
+        ? "Сохранить не получилось: у вас доступ только на просмотр. Попросите автора страницы выдать доступ «Contributor»."
+        : code === "quota_exceeded" ? "Хранилище заполнено. Начните новый раунд, чтобы очистить ставки."
+        : "Не удалось сохранить. Проверьте интернет и попробуйте ещё раз.";
+      hint(where, msg, true);
+      return false;
+    }
+  }
+
+  /* ---------- rendering ---------- */
+  function renderClock() {
+    const e = elapsed();
+    $("clock").textContent = fmt(e);
+    const st = $("status");
+    st.className = "status" + (round.status === "cooking" ? " cooking" : round.status === "served" ? " served" : "");
+    st.textContent = round.status === "cooking" ? "Готовят" : round.status === "served" ? "Принесли" : "Ждём заказа";
+    if (round.status === "cooking") renderBets(); // keeps the "now" marker moving
+  }
+
+  function renderHead() {
+    const hero = round.hero || "";
+    if (document.activeElement !== $("hero")) $("hero").value = hero;
+    if (document.activeElement !== $("prize")) $("prize").value = round.prize || "";
+    $("hero-title").textContent = hero ? hero : "коллеге";
+    const sub = $("sub");
+    if (round.status === "open") sub.textContent = "Когда официант примет заказ, нажмите «Заказ принят». Ставки можно делать уже сейчас.";
+    else if (round.status === "cooking") sub.textContent = "Таймер идёт. Новую ставку можно сделать только на время, которое ещё не наступило.";
+    else sub.textContent = `Заказ принесли через ${fmt(elapsed())}. Ставки закрыты.`;
+
+    const c = $("controls");
+    c.replaceChildren();
+    const btn = (text, cls, onClick) => { const b = document.createElement("button"); b.type = "button"; b.textContent = text; if (cls) b.className = cls; b.onclick = onClick; c.appendChild(b); return b; };
+    if (round.status === "open") {
+      btn("Заказ принят", "primary", () => startCooking(0));
+      btn("Заказали 5 минут назад", "", () => startCooking(5));
+    } else if (round.status === "cooking") {
+      btn("Принесли!", "primary", served);
+      btn("Отменить таймер", "", undoStart);
+    }
+    btn(resetArmed ? "Точно? Нажмите ещё раз" : "Новый раунд", "", reset);
+  }
+
+  function renderForm() {
+    const mine = bets.find((b) => b.id === myId);
+    const closed = round.status === "served";
+    $("bet-btn").textContent = mine ? "Изменить" : "Поставить";
+    $("bet-btn").disabled = closed || !db;
+    $("minutes").disabled = closed;
+    if (mine && document.activeElement !== $("minutes") && !$("minutes").value) $("minutes").value = mine.minutes;
+  }
+
+  function renderBets() {
+    const list = $("bets");
+    const sorted = [...bets].sort((a, b) => a.minutes - b.minutes || a.at - b.at);
+    const e = elapsed();
+    const win = new Set(winners().map((b) => b.id));
+    list.replaceChildren();
+    let markerPlaced = round.status === "open";
+    const marker = () => {
+      const li = document.createElement("li"); li.className = "now";
+      const s = document.createElement("span");
+      s.textContent = round.status === "served" ? `Принесли · ${fmt(e)}` : `Сейчас · ${fmt(e)}`;
+      li.appendChild(s); list.appendChild(li); markerPlaced = true;
+    };
+    for (const b of sorted) {
+      if (!markerPlaced && b.minutes * 60 > e) marker();
+      const li = document.createElement("li");
+      if (win.has(b.id)) li.classList.add("winner");
+      else if (round.status !== "open" && b.minutes * 60 <= e) li.classList.add("past");
+      const m = document.createElement("span"); m.className = "min"; m.textContent = b.minutes + "′";
+      const who = document.createElement("span"); who.className = "who"; who.textContent = b.name;
+      if (b.placedAtSec != null) { const sm = document.createElement("small"); sm.textContent = "поставил(а) на " + fmt(b.placedAtSec); who.appendChild(sm); }
+      const right = document.createElement("span");
+      if (win.has(b.id)) { right.className = "tag"; right.textContent = "Победа"; }
+      else if (round.status === "served") { right.className = "tag"; right.textContent = "±" + fmt(Math.abs(b.minutes * 60 - e)); }
+      else if (b.id === myId) {
+        const x = document.createElement("button"); x.type = "button"; x.className = "x"; x.textContent = "убрать";
+        x.setAttribute("aria-label", "Убрать мою ставку"); x.onclick = removeMine; right.appendChild(x);
+      } else { right.className = "tag"; right.textContent = b.id === myId ? "вы" : ""; }
+      li.append(m, who, right);
+      list.appendChild(li);
+    }
+    if (!markerPlaced && sorted.length) marker();
+    $("bets-empty").hidden = sorted.length > 0;
+    $("count").textContent = sorted.length + " " + (sorted.length % 10 === 1 && sorted.length % 100 !== 11 ? "ставка" : [2,3,4].includes(sorted.length % 10) && ![12,13,14].includes(sorted.length % 100) ? "ставки" : "ставок");
+
+    const r = $("result");
+    if (round.status === "served") {
+      const w = winners();
+      r.hidden = false;
+      r.replaceChildren();
+      const b = document.createElement("b");
+      const p = document.createElement("div");
+      if (!w.length) { b.textContent = "Никто не ставил"; p.textContent = `Еду принесли через ${fmt(e)}.`; }
+      else {
+        b.textContent = (w.length > 1 ? "Победители: " : "Победитель: ") + w.map((x) => x.name).join(", ");
+        const d = Math.abs(w[0].minutes * 60 - e);
+        p.textContent = `Ставка ${w[0].minutes} ${minWord(w[0].minutes)}, реальное время ${fmt(e)}, промах ${fmt(d)}.` + (round.prize ? ` Приз: ${round.prize}.` : "");
+      }
+      r.append(b, p);
+    } else r.hidden = true;
+  }
+
+  function renderHistory() {
+    $("hist-box").hidden = history.length === 0;
+    const ul = $("history"); ul.replaceChildren();
+    for (const h of history.slice(0, 10)) {
+      const li = document.createElement("li");
+      const a = document.createElement("span");
+      a.textContent = new Date(h.at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" }) + " · " + (h.hero || "Заказ") + (h.winners ? " · выиграл(и): " + h.winners : "");
+      const t = document.createElement("span"); t.className = "t"; t.textContent = fmt(h.totalSec);
+      li.append(a, t); ul.appendChild(li);
+    }
+  }
+
+  function renderAll() { renderHead(); renderForm(); renderBets(); renderClock(); renderHistory(); }
+
+  /* ---------- actions ---------- */
+  const roundRef = () => db.doc("game/round");
+
+  async function startCooking(minsAgo) {
+    if (!db) return;
+    await safe(() => roundRef().set({ ...round, status: "cooking", orderedAt: Date.now() - minsAgo * 60000, servedAt: null }), $("ctl-hint"));
+  }
+  async function undoStart() {
+    if (!db) return;
+    await safe(() => roundRef().set({ ...round, status: "open", orderedAt: null, servedAt: null }), $("ctl-hint"));
+  }
+  async function served() {
+    if (!db) return;
+    const now = Date.now();
+    const next = { ...round, status: "served", servedAt: now };
+    const ok = await safe(() => roundRef().set(next), $("ctl-hint"));
+    if (!ok) return;
+    round = next;
+    const w = winners();
+    await safe(() => db.collection("history").doc("h" + now).set({
+      at: now, hero: round.hero || "", totalSec: Math.round((now - round.orderedAt) / 1000),
+      winners: w.map((x) => x.name).join(", "), bets: bets.length,
+    }), $("ctl-hint"));
+  }
+  async function reset() {
+    if (!db) return;
+    if (!resetArmed) {
+      resetArmed = true; renderHead();
+      hint($("ctl-hint"), "Все ставки удалятся, таймер обнулится. Имя коллеги и приз останутся.");
+      setTimeout(() => { resetArmed = false; hint($("ctl-hint"), ""); renderHead(); }, 4000);
+      return;
+    }
+    resetArmed = false;
+    hint($("ctl-hint"), "");
+    for (const b of bets) { await safe(() => db.doc("bets/" + b.id).delete(), $("ctl-hint")); }
+    await safe(() => roundRef().set({ status: "open", orderedAt: null, servedAt: null, hero: round.hero || "", prize: round.prize || "" }), $("ctl-hint"));
+  }
+
+  async function saveField(field) {
+    if (!db) return;
+    const v = $(field).value.trim();
+    if (v === (round[field] || "")) return;
+    await safe(() => roundRef().set({ ...round, [field]: v }), $("ctl-hint"));
+  }
+  $("hero").addEventListener("change", () => saveField("hero"));
+  $("prize").addEventListener("change", () => saveField("prize"));
+
+  $("bet-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const h = $("bet-hint");
+    if (!db) return hint(h, "Хранилище ещё не подключилось. Подождите пару секунд.", true);
+    const name = $("name").value.trim();
+    const minutes = Math.round(Number($("minutes").value));
+    if (!name) return hint(h, "Введите имя, чтобы все видели, чья это ставка.", true);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 300) return hint(h, "Укажите число минут от 1 до 300.", true);
+    const e = elapsed();
+    if (round.status === "cooking" && minutes * 60 < e + 60) {
+      return hint(h, `Уже прошло ${fmt(e)}. Ставка должна быть минимум на ${Math.ceil(e / 60) + 1} ${minWord(Math.ceil(e / 60) + 1)}.`, true);
+    }
+    if (round.status === "served") return hint(h, "Раунд закончен. Начните новый, чтобы снова делать ставки.", true);
+    LS.set("lunchbet.name", name);
+    if (!myId || !bets.some((b) => b.id === myId)) {
+      const taken = bets.find((b) => b.name.toLowerCase() === name.toLowerCase());
+      if (taken) return hint(h, `Имя «${taken.name}» уже занято. Добавьте фамилию или инициал.`, true);
+    }
+    const ref = myId ? db.doc("bets/" + myId) : db.collection("bets").doc();
+    const ok = await safe(() => ref.set({ name, minutes, at: Date.now(), placedAtSec: round.status === "cooking" ? Math.round(e) : null }), h);
+    if (ok) {
+      myId = ref.id; LS.set("lunchbet.myId", myId);
+      hint(h, `Принято: ${name} ставит на ${minutes} ${minWord(minutes)}.`);
+    }
+  });
+
+  async function removeMine() {
+    if (!db || !myId) return;
+    const ok = await safe(() => db.doc("bets/" + myId).delete(), $("bet-hint"));
+    if (ok) { $("minutes").value = ""; hint($("bet-hint"), "Ставка убрана."); }
+  }
+
+  /* ---------- boot ---------- */
+  renderAll();
+  setInterval(renderClock, 1000);
+
+  const cl = window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null);
+  cl.then((d) => {
+    if (!d) { banner("Ставки не подключились. Откройте страницу по ссылке в claude.ai и войдите в аккаунт."); $("bet-btn").disabled = true; return; }
+    db = d;
+    renderForm();
+    db.doc("game/round").onSnapshot((s) => {
+      const data = s.exists ? s.data() : null;
+      round = data ? { status: "open", orderedAt: null, servedAt: null, hero: "", prize: "", ...data } : { status: "open", orderedAt: null, servedAt: null, hero: "", prize: "" };
+      renderAll();
+    }, () => banner("Связь с хранилищем потеряна. Обновите страницу."));
+    db.collection("bets").onSnapshot((s) => {
+      bets = s.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((b) => typeof b.minutes === "number" && typeof b.name === "string");
+      renderAll();
+    }, () => banner("Связь с хранилищем потеряна. Обновите страницу."));
+    db.collection("history").orderBy("at", "desc").limit(10).onSnapshot((s) => {
+      history = s.docs.map((doc) => doc.data());
+      renderHistory();
+    }, () => {});
+  });
+})();
+</script>
