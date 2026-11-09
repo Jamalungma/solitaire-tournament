@@ -70,7 +70,7 @@ a { color: inherit; text-decoration: none; }
   padding: max(18px, calc(env(safe-area-inset-top) + 8px)) 4px 14px;
 }
 .title { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; text-wrap: balance; min-width: 0; }
-.title small { display: block; margin-top: 4px; font-size: 14px; font-weight: 500; letter-spacing: -.01em; color: var(--text-2); }
+.title small { display: block; margin-top: 4px; font-size: 15px; font-weight: 500; letter-spacing: -.01em; color: var(--muted); }
 .glass-btn {
   display: inline-flex; align-items: center; gap: 7px; flex: none;
   height: 40px; padding: 0 16px; border-radius: 99px;
@@ -90,21 +90,31 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid rgba(255,255,255,.06);
   overflow: hidden;
 }
-.panel + .panel, .panel + .stack, .stack + .panel { margin-top: 12px; }
+.panel + .panel, .panel + .segments, .segments + .panel, .input.search + .segments { margin-top: 14px; }
 .panel-head {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 14px 16px 6px; font-size: 16px; font-weight: 700; text-align: center;
+  display: flex; align-items: baseline; justify-content: center; gap: 8px;
+  padding: 16px 16px 6px; font-size: 19px; font-weight: 700; letter-spacing: -.025em; text-align: center;
 }
+.panel-head .count { color: var(--muted); font-weight: 600; }
 .panel-head.left { justify-content: space-between; text-align: left; }
 .panel-head .link { font-size: 14px; font-weight: 500; color: var(--muted); display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; padding: 0; }
 .panel-head .link .icon { width: 14px; height: 14px; }
 .panel-body { padding: 4px 16px 14px; }
 .panel-foot { display: flex; justify-content: center; padding: 4px 16px 14px; }
 .sep { height: 1px; background: var(--line); margin: 0 16px; }
-.caption { color: var(--muted); font-size: 12.5px; text-align: center; padding: 0 20px 14px; margin: 0; }
+.caption { color: var(--dim); font-size: 12.5px; text-align: center; padding: 6px 20px 14px; margin: 0; }
 
 /* Сегменты (как «Вчера / Сегодня / Скоро») */
 .segments { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; padding: 12px 10px 6px; }
+/* Отдельный переключатель (период, сортировка) — стеклянная капсула */
+.segments.bar {
+  padding: 3px; margin-top: 14px; border-radius: 99px;
+  background: var(--panel); border: 1px solid rgba(255,255,255,.06);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+}
+.segments.bar .seg { padding: 7px 12px; font-size: 14px; }
+.segments.inner { padding: 4px 10px 4px; }
+.segments.inner .seg { flex: 0 0 auto; font-size: 14px; padding: 6px 12px; }
 .segments::-webkit-scrollbar { display: none; }
 .seg { flex: 1 0 auto; border: 0; background: none; padding: 7px 12px; border-radius: 99px; color: var(--muted); font-weight: 600; font-size: 15px; white-space: nowrap; }
 .seg[aria-pressed="true"] { color: var(--text); background: var(--fill-2); }
@@ -144,7 +154,7 @@ a { color: inherit; text-decoration: none; }
 .game.compact .team.b { flex-direction: row-reverse; text-align: right; }
 .game.compact .mid { grid-template-columns: 30px 30px 30px; }
 .game.compact .score { font-size: 24px; }
-.game.compact .state { font-size: 11px; padding: 0; }
+.game.compact .state { font-size: 20px; font-weight: 600; color: var(--dim); padding: 0 0 2px; }
 .game.compact .state b { font-size: 12px; color: var(--dim); font-weight: 600; }
 .game.compact .scorers { padding: 2px 0 0; }
 .game.editable:hover { background: rgba(255,255,255,.03); }
@@ -192,7 +202,7 @@ a.item:hover .nm { text-decoration: underline; text-decoration-color: var(--dim)
 .more:hover { color: var(--text); }
 
 /* ---------- MVP ---------- */
-.mvp { display: flex; align-items: center; gap: 14px; padding: 6px 16px 16px; }
+.mvp { display: flex; align-items: center; gap: 14px; padding: 14px 16px 16px; }
 .mvp .who { flex: 1; min-width: 0; }
 .mvp .who b { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mvp .who span { font-size: 13px; color: var(--muted); }
@@ -216,11 +226,27 @@ a.item:hover .nm { text-decoration: underline; text-decoration-color: var(--dim)
 .tour-row:hover { background: rgba(255,255,255,.03); }
 .tour-row .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .tour-row .d { font-size: 17px; font-weight: 700; }
-.tour-row .places { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
-.tour-row .pl { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-2); }
-.tour-row .pl b { color: var(--text); font-weight: 700; }
-.tour-row .pl.first b { color: var(--gold); }
-.tour-row .m { margin-top: 8px; font-size: 13px; color: var(--muted); }
+.tour-row .places-row { margin-top: 10px; }
+.tour-row .m { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; color: var(--text-2); font-weight: 500; }
+/* Итог тура: команды по местам */
+.places-row { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.places-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; padding-top: 6px; }
+.places-grid .pl { display: grid; justify-items: center; gap: 4px; text-align: center; min-width: 0; }
+.places-grid .nm { font-size: 13px; font-weight: 600; color: var(--text-2); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.places-grid b { font-size: 26px; font-weight: 800; letter-spacing: -.03em; line-height: 1; color: var(--dim); }
+.places-grid .first .nm { color: var(--text); }
+.places-grid .first b { color: var(--text); }
+.places-row .pl { display: inline-flex; align-items: center; gap: 7px; font-size: 15px; color: var(--text-2); }
+.places-row .pl b { color: var(--text); font-weight: 800; }
+.places-row .pl.first .nm { color: var(--text); font-weight: 600; }
+.places-row .pl.first b { color: var(--gold); }
+a.panel { display: block; }
+a.panel:hover { background: rgba(38,38,42,.78); }
+.panel-head .link { align-self: center; }
+.input.search { margin-top: 2px; background: var(--panel); border: 1px solid rgba(255,255,255,.06); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); border-radius: 14px; }
+.hero-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.hero-pills span { display: inline-flex; align-items: baseline; gap: 5px; padding: 6px 12px; border-radius: 99px; background: rgba(255,255,255,.1); font-size: 13px; color: var(--text-2); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); }
+.hero-pills b { font-size: 15px; font-weight: 700; color: var(--text); }
 
 .roster { padding: 12px 16px; }
 .roster + .roster { border-top: 1px solid var(--line); }

@@ -47,7 +47,7 @@
     return many;
   };
   const nWord = (n, one, few, many) => `${n} ${plural(n, one, few, many)}`;
-  const fix1 = (x) => (Math.round(x * 10) / 10).toLocaleString('ru-RU');
+  const fix1 = (x) => (Math.round(x * 10) / 10).toFixed(1).replace('.', ',');
   const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   // Оттенок аватара по имени (0–359), чтобы у каждого игрока был свой цвет
   const hueFor = (s) => {
@@ -189,16 +189,16 @@
   const panelHead = (title, right) => `<div class="panel-head left"><span>${title}</span>${right || ''}</div>`;
   const moreLink = (href, label) => `<a class="link" href="${href}">${label}${icon('chev')}</a>`;
 
-  function periodSegments() {
+  function periodSegments(inPanel) {
     const months = LG.monthsOf(S.data);
-    if (!months.length) return '';
+    if (months.length < 2) return '';
     const seg = (v, label) => `<button class="seg" data-act="period" data-v="${v}" aria-pressed="${S.period === v}">${esc(label)}</button>`;
-    return `<div class="segments">${seg('all', 'Всё время')}${months.map((m) => seg(m, fmtMonth(m))).join('')}</div>`;
+    return `<div class="segments ${inPanel ? 'inner' : 'bar'}">${seg('all', 'Всё время')}${months.map((m) => seg(m, fmtMonth(m))).join('')}</div>`;
   }
 
   function eventText(e) {
     if (e.own) return `${esc(e.scorer || '?')} <span class="dim">(авт.)</span>`;
-    return `${esc(e.scorer || 'Без автора')}${e.assist ? ` <span class="dim">· ${esc(e.assist)}</span>` : ''}`;
+    return `${esc(e.scorer || 'Без автора')}${e.assist ? ` <span class="dim">(${esc(e.assist)})</span>` : ''}`;
   }
   const minute = (e) => (e.ms != null ? `${Math.floor(e.ms / 60000) + 1}′` : '');
 
@@ -210,7 +210,7 @@
       ? `<div class="scorers"><div>${evA.map(eventText).join('<br>')}</div><div class="b">${evB.map(eventText).join('<br>')}</div></div>` : '';
     return `<div class="game ${editable ? 'editable' : ''} ${compact ? 'compact' : ''}" ${editable ? `data-act="edit-match" data-tour="${esc(t.id)}" data-match="${esc(m.id)}" title="Изменить матч"` : ''}>
       <div class="team a">${kit(m.a, compact ? '' : 'l')}<span>${esc(tn(m.a))}</span></div>
-      <div class="mid"><span class="score ${s.a < s.b ? 'lose' : ''}">${s.a}</span><span class="state">${compact ? '' : 'Матч'}<b>${n}</b></span><span class="score ${s.b < s.a ? 'lose' : ''}">${s.b}</span></div>
+      <div class="mid"><span class="score ${s.a < s.b ? 'lose' : ''}">${s.a}</span><span class="state">${compact ? ':' : `Матч<b>${n}</b>`}</span><span class="score ${s.b < s.a ? 'lose' : ''}">${s.b}</span></div>
       <div class="team b">${kit(m.b, compact ? '' : 'l')}<span>${esc(tn(m.b))}</span></div>
       ${scorers}
     </div>`;
@@ -233,12 +233,19 @@
   }
 
   /* ---------- Таблица ---------- */
+  // Итог тура: команды по местам. full — с названиями (главная), иначе только футболки и очки
+  function tourSummary(t, info, full) {
+    if (full) {
+      return `<div class="places-grid">${info.standings.map((s, i) => `<div class="pl ${i === 0 && s.games ? 'first' : ''}">${kit(s.key, 'l')}<span class="nm">${esc(tn(s.key))}</span><b>${s.pts}</b></div>`).join('')}</div>`;
+    }
+    return `<div class="places-row">${info.standings.map((s, i) => `<span class="pl ${i === 0 && s.games ? 'first' : ''}" title="${esc(tn(s.key))}">${kit(s.key)}<b>${s.pts}</b></span>`).join('')}</div>`;
+  }
+
   function vTable() {
     const st = stats();
     const all = allStats();
-    const playersCount = S.data.players.length;
     let html = head(esc(S.data.name || 'Лига'),
-      `${S.data.season ? esc(S.data.season) + ' · ' : ''}${nWord(all.tours.length, 'тур', 'тура', 'туров')} · ${nWord(playersCount, 'игрок', 'игрока', 'игроков')}`, mainRight());
+      [S.data.season ? esc(S.data.season) : '', nWord(all.tours.length, 'тур', 'тура', 'туров')].filter(Boolean).join(' · '), mainRight());
 
     if (!all.tours.length) {
       return html + `<section class="panel">${empty('cal', 'Пока нет ни одного тура',
@@ -250,45 +257,27 @@
 
     // Последний тур
     const last = all.tours[all.tours.length - 1];
-    const lastInfo = all.tourInfo[last.id];
-    const games = last.matches.map((m, i) => ({ m, n: i + 1 })).slice(-3).reverse();
-    html += `<section class="panel">${panelHead(`Последний тур · ${fmtDate(last.date)}`, moreLink('#/tour/' + enc(last.id), 'Весь тур'))}
-      ${games.length ? `<div class="panel-body" style="padding-top:0">${games.map((g) => gameHtml(last, g.m, g.n, false)).join('')}</div>` : `<p class="caption">Матчей ещё не было</p>`}
-      ${lastInfo.mvp ? `<div class="sep"></div><a class="mvp" href="${playerHref(lastInfo.mvp.name)}" style="padding-top:14px">${avatar(lastInfo.mvp.name)}
-        <div class="who"><span><svg class="star"><use href="#i-star"/></svg> MVP тура</span><b>${esc(lastInfo.mvp.name)}</b></div>
-        <div class="big"><b>${lastInfo.mvp.score}</b><span>${plural(lastInfo.mvp.score, 'балл', 'балла', 'баллов')}</span></div></a>` : ''}
-    </section>`;
-
-    // Лидеры за период
-    const by = (f, filter) => [...st.list].filter(filter || (() => true)).sort((a, b) => f(b) - f(a))[0];
-    const regular = (p) => !p.smallSample;
-    const leaders = [
-      ['Голы', by((p) => p.goals * 1000 + p.assists), (p) => p.goals],
-      ['Пасы', by((p) => p.assists * 1000 + p.goals), (p) => p.assists],
-      ['Рейтинг', by((p) => p.rating, regular), (p) => p.rating],
-      ['Победы', by((p) => p.winPct, regular), (p) => Math.round(p.winPct) + '%'],
-      ['Сухие', by((p) => p.cs), (p) => p.cs],
-      ['Матчи', by((p) => p.games), (p) => p.games],
-    ];
-    const leaderCell = ([k, p, v]) => (p
-      ? `<a class="leader" href="${playerHref(p.name)}"><span class="k">${k}</span>${avatar(p.name)}<span class="n">${esc(p.name)}</span><span class="v">${v(p)}</span></a>`
-      : `<div class="leader"><span class="k">${k}</span><span class="v dim">—</span></div>`);
-    html += `<section class="panel">${periodSegments()}
-      <div class="leaders">${leaders.slice(0, 3).map(leaderCell).join('')}</div>
-      <div class="leaders">${leaders.slice(3).map(leaderCell).join('')}</div></section>`;
+    const info = all.tourInfo[last.id];
+    html += `<a class="panel tour-card" href="#/tour/${enc(last.id)}">
+      <div class="panel-head left"><span>Последний тур</span><span class="link">${fmtDate(last.date)}${icon('chev')}</span></div>
+      <div class="panel-body">${tourSummary(last, info, true)}</div>
+      ${info.mvp ? `<div class="sep"></div><div class="mvp">${avatar(info.mvp.name)}
+        <div class="who"><span><svg class="star"><use href="#i-star"/></svg> MVP тура</span><b>${esc(info.mvp.name)}</b></div>
+        <div class="big"><b>${info.mvp.score}</b><span>${plural(info.mvp.score, 'балл', 'балла', 'баллов')}</span></div></div>` : ''}
+    </a>`;
 
     // Таблица
-    html += `<section class="panel">${panelHead('Таблица', `<span class="muted" style="font-size:13px;font-weight:500">${S.period === 'all' ? 'всё время' : esc(fmtMonth(S.period).toLowerCase())}</span>`)}
+    html += `<section class="panel">${panelHead('Таблица')}${periodSegments(true)}
       <div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th class="name">Игрок</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>+/−</th><th>О</th></tr></thead><tbody>
       ${st.list.map((p) => {
         let mv = '';
         if (p.prevPos != null && p.prevPos !== p.pos) mv = p.prevPos > p.pos ? `<span class="mv up">▲${p.prevPos - p.pos}</span>` : `<span class="mv down">▼${p.pos - p.prevPos}</span>`;
-        return `<tr class="${p.pos === 4 ? 'cut' : ''}"><td>${p.pos}${mv}</td>
+        return `<tr><td>${p.pos}${mv}</td>
           <td class="name"><a href="${playerHref(p.name)}">${avatar(p.name, 's')}<span class="t">${esc(p.name)}</span>${gkTag(p.name)}</a></td>
           <td>${p.games}</td><td>${p.w}</td><td>${p.d}</td><td>${p.l}</td><td>${p.gd > 0 ? '+' : ''}${p.gd}</td><td class="pts">${p.pts}</td></tr>`;
       }).join('')}
       </tbody></table></div>
-      <p class="caption" style="padding-top:10px">Очки игрока — очки его команды в матчах, где он играл: 3 за победу, 1 за ничью.</p></section>`;
+      <p class="caption">Очки игрока — очки его команды в матчах, где он играл</p></section>`;
 
     if (S.period === 'all') {
       const mm = LG.monthMVPs(S.data, todayStr());
@@ -313,9 +302,8 @@
     html += `<section class="panel">${[...st.tours].reverse().map((t) => {
       const info = st.tourInfo[t.id];
       return `<a class="tour-row" href="#/tour/${enc(t.id)}">
-        <div class="top"><span class="d">${fmtDate(t.date)}</span><span class="muted">${fmtWeekday(t.date)} · ${nWord(t.matches.length, 'матч', 'матча', 'матчей')}</span></div>
-        <div class="places">${info.standings.map((s, i) => `<span class="pl ${i === 0 && s.games ? 'first' : ''}">${kit(s.key)}${esc(tn(s.key))} <b>${s.pts}</b></span>`).join('')}</div>
-        ${info.mvp ? `<div class="m"><svg class="star"><use href="#i-star"/></svg> ${esc(info.mvp.name)} · ${nWord(info.mvp.score, 'балл', 'балла', 'баллов')}</div>` : ''}
+        <div class="top"><span class="d">${fmtDate(t.date)}</span>${info.mvp ? `<span class="m"><svg class="star"><use href="#i-star"/></svg>${esc(info.mvp.name)}</span>` : ''}</div>
+        ${tourSummary(t, info)}
       </a>`;
     }).join('')}</section>`;
     return html;
@@ -329,7 +317,7 @@
     const winner = info.standings[0];
     if (winner && winner.games) setTint(TINTS[winner.key], info.standings[1] && TINTS[info.standings[1].key].replace(/[\d.]+\)$/, '.25)'));
 
-    let html = backRow('#/tours') + head(fmtDate(t.date), `${fmtWeekday(t.date)} · ${nWord(t.matches.length, 'матч', 'матча', 'матчей')}`);
+    let html = backRow('#/tours') + head(fmtDate(t.date), info.mvp ? `MVP — ${esc(info.mvp.name)}` : fmtWeekday(t.date));
     if (ed) {
       html += `<div class="btn-row" style="margin:0 0 12px">
         <button class="btn btn-white" data-act="live-from-tour" data-tour="${esc(t.id)}">${icon('play')}Матч</button>
@@ -342,7 +330,7 @@
         <td>${s.games}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}:${s.ga}</td><td class="pts">${s.pts}</td></tr>`).join('')}
       </tbody></table></div><div style="height:8px"></div></section>`;
 
-    html += `<section class="panel">${panelHead(`Матчи <span class="muted">${t.matches.length}</span>`, ed && t.matches.length ? '<span class="muted" style="font-size:13px;font-weight:500">нажмите, чтобы изменить</span>' : '')}
+    html += `<section class="panel">${panelHead(`Матчи <span class="count">${t.matches.length}</span>`)}
       ${t.matches.length ? `<div class="panel-body" style="padding-top:0">${t.matches.map((m, i) => gameHtml(t, m, i + 1, ed, true)).join('')}</div>`
         : empty('', 'Матчей ещё не было', ed ? 'Нажмите «Матч», чтобы начать первый.' : '')}</section>`;
 
@@ -350,14 +338,14 @@
       html += `<section class="panel">${panelHead('Лучшие в туре')}<ul class="list">
         ${info.players.slice(0, 5).map((p, i) => `<li><a class="item" href="${playerHref(p.name)}">
           <span class="rank">${i === 0 ? '<svg class="star"><use href="#i-star"/></svg>' : i + 1}</span>${avatar(p.name)}
-          <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${kit(p.key)} голы ${p.goals} · пасы ${p.assists} · ${p.w}-${p.d}-${p.l}</span></span>
+          <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${kit(p.key)} ${[p.goals ? nWord(p.goals, 'гол', 'гола', 'голов') : '', p.assists ? nWord(p.assists, 'пас', 'паса', 'пасов') : '', nWord(p.w, 'победа', 'победы', 'побед')].filter(Boolean).join(' · ')}</span></span>
           <span class="val"><b>${p.score}</b><span>${plural(p.score, 'балл', 'балла', 'баллов')}</span></span></a></li>`).join('')}
-        </ul><p class="caption" style="padding-top:8px">Баллы: 2 за гол, 2 за пас, 2 за победу, 1 за ничью, 1 за сухой матч.</p></section>`;
+        </ul><p class="caption">Гол и пас — 2 балла, победа — 2, ничья и сухой матч — 1</p></section>`;
     }
 
     html += `<section class="panel">${panelHead('Составы')}${Object.entries(t.teams).map(([k, names]) => {
       const place = info.standings.findIndex((s) => s.key === k) + 1;
-      return `<div class="roster"><h3>${kit(k)}${esc(tn(k))}<span class="muted">${place ? place + '-е место' : ''}</span></h3>
+      return `<div class="roster"><h3>${kit(k)}${esc(tn(k))}<span class="muted">${place ? place + '-е' : ''}</span></h3>
         <div class="chips">${names.map((n) => `<a class="chip" href="${playerHref(n)}">${esc(n)}${gkTag(n)}</a>`).join('')}</div></div>`;
     }).join('')}</section>`;
 
@@ -497,23 +485,21 @@
     const q = S.search.trim().toLowerCase();
     const list = [...st.list].filter((p) => !q || p.name.toLowerCase().includes(q)).sort((a, b) => f(b) - f(a) || a.name.localeCompare(b.name, 'ru'));
     const idle = S.data.players.filter((p) => !st.byName[p.name] && (!q || p.name.toLowerCase().includes(q)));
-    const valOf = { rating: (p) => [Math.round(p.winPct) + '%', 'побед'], pts: (p) => [p.pts, plural(p.pts, 'очко', 'очка', 'очков')], goals: (p) => [p.goals, plural(p.goals, 'гол', 'гола', 'голов')], assists: (p) => [p.assists, plural(p.assists, 'пас', 'паса', 'пасов')], games: (p) => [p.games, plural(p.games, 'матч', 'матча', 'матчей')] }[S.playerSort] || ((p) => [Math.round(p.winPct) + '%', 'побед']);
+    const valOf = {
+      rating: (p) => `<span class="rating ${p.smallSample ? 'dim' : p.rating >= 85 ? 'hi' : ''}">${p.rating}</span>`,
+      pts: (p) => `<b>${p.pts}</b>`, goals: (p) => `<b>${p.goals}</b>`, assists: (p) => `<b>${p.assists}</b>`, games: (p) => `<b>${p.games}</b>`,
+    }[S.playerSort] || ((p) => `<b>${p.rating}</b>`);
 
     let html = head('Игроки', nWord(S.data.players.length, 'игрок', 'игрока', 'игроков'), mainRight());
-    html += `<section class="panel"><div style="padding:12px 12px 0"><label class="input">${icon('search')}<input type="search" data-input="search" value="${esc(S.search)}" placeholder="Найти игрока" aria-label="Поиск игрока"></label></div>
-      <div class="segments">${Object.entries(sorts).map(([k, [label]]) => `<button class="seg" data-act="psort" data-v="${k}" aria-pressed="${S.playerSort === k}">${label}</button>`).join('')}</div>
-      <ul class="list" id="player-list">`;
+    html += `<label class="input search">${icon('search')}<input type="search" data-input="search" value="${esc(S.search)}" placeholder="Найти игрока" aria-label="Поиск игрока"></label>
+      <div class="segments bar">${Object.entries(sorts).map(([k, [label]]) => `<button class="seg" data-act="psort" data-v="${k}" aria-pressed="${S.playerSort === k}">${label}</button>`).join('')}</div>
+      <section class="panel"><ul class="list" id="player-list">`;
     if (!list.length && !idle.length) html += `<li>${empty('search', q ? 'Никого не нашлось' : 'Игроков пока нет', q ? '' : 'Игроки появятся, когда организатор создаст тур.')}</li>`;
-    html += list.map((p) => {
-      const [v, lab] = valOf(p);
-      return `<li><a class="item" href="${playerHref(p.name)}">
-        <span class="rating ${p.smallSample ? 'dim' : p.rating >= 85 ? 'hi' : ''}" title="${p.smallSample ? 'Мало матчей для точного рейтинга' : 'Рейтинг'}">${p.rating}</span>
-        ${avatar(p.name)}
-        <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${nWord(p.games, 'матч', 'матча', 'матчей')} · голы ${p.goals} · пасы ${p.assists}</span></span>
-        <span class="val"><b>${v}</b><span>${lab}</span></span></a></li>`;
-    }).join('');
-    html += idle.map((p) => `<li><a class="item" href="${playerHref(p.name)}"><span class="rating dim">—</span>${avatar(p.name)}<span class="main"><span class="nm">${esc(p.name)}</span><span class="sub">ещё не играл</span></span></a></li>`).join('');
-    return html + `</ul><p class="caption" style="padding-top:10px">Рейтинг 50–99 сравнивает игрока с остальными: атака и защита его команд, голы, пасы, победы и очки. Серый — пока мало матчей.</p></section>`;
+    html += list.map((p) => `<li><a class="item" href="${playerHref(p.name)}">${avatar(p.name)}
+        <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${nWord(p.games, 'матч', 'матча', 'матчей')} · ${p.goals} г · ${p.assists} п</span></span>
+        <span class="val">${valOf(p)}</span></a></li>`).join('');
+    html += idle.map((p) => `<li><a class="item" href="${playerHref(p.name)}">${avatar(p.name)}<span class="main"><span class="nm">${esc(p.name)}</span><span class="sub">ещё не играл</span></span></a></li>`).join('');
+    return html + `</ul>${S.playerSort === 'rating' ? '<p class="caption" style="padding-top:8px">Рейтинг 50–99 считается по атаке, защите, голам, пасам и победам. Серый — мало матчей</p>' : ''}</section>`;
   }
 
   function radarSvg(r, h) {
@@ -564,20 +550,20 @@
 
     let html = backRow('#/players') + `<section style="display:grid;justify-items:center;gap:12px;text-align:center;padding:8px 0 22px">
       ${avatar(name, 'xl')}
-      <h1 class="title">${esc(name)}${gkTag(name)}<small>${p ? `${p.pos}-е место в таблице · рейтинг ${p.rating}` : 'Ещё не играл'}</small></h1></section>`;
+      <h1 class="title">${esc(name)}${gkTag(name)}</h1>
+      ${p ? `<div class="hero-pills"><span><b>${p.pos}</b> место</span><span><b>${p.rating}</b> рейтинг</span><span><b>${fix1(p.ppg)}</b> очк/матч</span></div>` : '<p class="hint">Ещё не играл</p>'}</section>`;
 
     if (p) {
-      const tiles = [['Матчи', p.games], ['Очки', p.pts], ['Очки/матч', fix1(p.ppg)], ['Победы', Math.round(p.winPct) + '%'], ['Голы', p.goals], ['Пасы', p.assists],
-        ['Сухие', p.cs], ['Туры', p.tours], ['Мячи', `${p.gf}:${p.ga}`]];
+      const tiles = [['Матчи', p.games], ['Очки', p.pts], ['Побед', Math.round(p.winPct) + '%'], ['Голы', p.goals], ['Пасы', p.assists], ['Сухие', p.cs]];
       html += `<section class="panel"><div class="stat-grid">${tiles.map(([k, v]) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('')}</div></section>
         <section class="panel">${panelHead('Профиль')}<div class="panel-body">${radarSvg(p.radar, h)}</div>
-        <p class="caption">Число у оси — сколько процентов игроков хуже по этому показателю.${p.smallSample ? ' Пока мало матчей, профиль будет меняться.' : ''}</p></section>`;
+        <p class="caption">Сколько процентов игроков хуже${p.smallSample ? ' · пока мало матчей' : ''}</p></section>`;
 
       const hist = p.history.slice(-10).reverse();
       const spark = sparkSvg(p.rankAfter || [], st.list.length);
-      html += `<section class="panel">${panelHead('Форма', '<span class="muted" style="font-size:13px;font-weight:500">место команды, свежие слева</span>')}
+      html += `<section class="panel">${panelHead('Форма', '<span class="muted" style="font-size:13px;font-weight:500">место в турах</span>')}
         <div class="form-row">${hist.map((x) => `<a class="${x.place === 1 ? 'p1' : x.place === x.teams ? 'plast' : ''}" href="#/tour/${enc(x.tourId)}" title="${fmtDate(x.date)}: ${x.place}-е место, голы ${x.goals}, пасы ${x.assists}">${x.place}</a>`).join('')}</div>
-        ${spark ? `<div class="sep" style="margin-top:12px"></div>${panelHead('Место в общей таблице', `<span class="muted" style="font-size:13px;font-weight:500">сейчас ${p.pos}-е</span>`)}<div class="panel-body">${spark}</div>` : '<div style="height:10px"></div>'}
+        ${spark ? `<div class="sep" style="margin-top:12px"></div>${panelHead('Место в таблице')}<div class="panel-body">${spark}</div>` : '<div style="height:10px"></div>'}
       </section>`;
 
       const partners = st.pairs.filter((x) => (x.a === name || x.b === name) && x.games >= 3)
@@ -587,8 +573,9 @@
           <span class="main"><span class="nm">${esc(x.other)}</span><span class="sub">${nWord(x.games, 'матч', 'матча', 'матчей')} вместе · ${x.w}-${x.d}-${x.l}</span></span>
           <span class="val"><b>${fix1(x.ppg)}</b><span>очк/матч</span></span></a></li>`).join('')}</ul></section>`;
       }
-      const feeds = st.links.filter((l) => l.to === name).slice(0, 3);
-      const gives = st.links.filter((l) => l.from === name).slice(0, 3);
+      // связка интересна, только если повторялась
+      const feeds = st.links.filter((l) => l.to === name && l.count >= 2).slice(0, 3);
+      const gives = st.links.filter((l) => l.from === name && l.count >= 2).slice(0, 3);
       const linkList = (arr, key, label) => `<li><div class="item" style="padding-bottom:4px"><span class="sub">${label}</span></div></li>${arr.map((l) => `<li><a class="item" href="${playerHref(l[key])}">${avatar(l[key], 's')}<span class="main"><span class="nm">${esc(l[key])}</span></span><span class="val"><b style="font-size:16px">${l.count}</b></span></a></li>`).join('')}`;
       if (feeds.length || gives.length) {
         html += `<section class="panel">${panelHead('Голевые передачи')}<ul class="list">${feeds.length ? linkList(feeds, 'from', 'Чаще всего пасуют ему') : ''}${gives.length ? linkList(gives, 'to', 'Он чаще всего пасует') : ''}</ul></section>`;
@@ -612,9 +599,9 @@
   /* ---------- Статистика ---------- */
   function vStats() {
     const st = stats();
-    let html = head('Статистика', S.period === 'all' ? 'за всё время' : 'за ' + esc(fmtMonth(S.period).toLowerCase()), mainRight());
+    let html = head('Лидеры', '', mainRight());
     if (!st.list.length) return html + `<section class="panel">${empty('chart', 'Пока нечего считать', 'Статистика появится после первых матчей.')}</section>`;
-    html += `<section class="panel">${periodSegments()}<div style="height:6px"></div></section>`;
+    html += periodSegments();
 
     const block = (key, title, items, row, note) => {
       if (!items.length) return '';
@@ -626,25 +613,24 @@
     };
     const prow = (val, label, sub) => (p, i) => `<li><a class="item" href="${playerHref(p.name)}"><span class="rank">${i + 1}</span>${avatar(p.name)}
       <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${sub(p)}</span></span>
-      <span class="val"><b>${val(p)}</b><span>${label(p)}</span></span></a></li>`;
+      <span class="val"><b>${val(p)}</b>${label(p) ? `<span>${label(p)}</span>` : ''}</span></a></li>`;
     const sortBy = (f, filter) => [...st.list].filter(filter || ((p) => f(p) > 0)).sort((a, b) => f(b) - f(a) || a.games - b.games);
 
-    html += block('goals', 'Бомбардиры', sortBy((p) => p.goals), prow((p) => p.goals, (p) => plural(p.goals, 'гол', 'гола', 'голов'), (p) => `${fix1(p.goalsPg)} за матч · ${nWord(p.games, 'матч', 'матча', 'матчей')}`));
-    html += block('assists', 'Ассистенты', sortBy((p) => p.assists), prow((p) => p.assists, (p) => plural(p.assists, 'пас', 'паса', 'пасов'), (p) => `${fix1(p.assistsPg)} за матч`));
-    html += block('ga', 'Гол + пас', sortBy((p) => p.goals + p.assists), prow((p) => p.goals + p.assists, () => 'г+п', (p) => `голы ${p.goals} · пасы ${p.assists}`));
-    html += block('cs', 'Сухие матчи', sortBy((p) => p.cs), prow((p) => p.cs, () => 'сухих', (p) => `${Math.round(p.csPct)}% матчей на ноль`));
-    html += block('ppg', 'Очки за матч', sortBy((p) => p.ppg, (p) => !p.smallSample), prow((p) => fix1(p.ppg), () => 'очк/матч', (p) => `${p.w}-${p.d}-${p.l}`),
-      `Только игроки, у которых хотя бы ${nWord(st.minGames, 'матч', 'матча', 'матчей')}.`);
+    html += block('goals', 'Бомбардиры', sortBy((p) => p.goals), prow((p) => p.goals, () => '', (p) => `${fix1(p.goalsPg)} за матч`));
+    html += block('assists', 'Ассистенты', sortBy((p) => p.assists), prow((p) => p.assists, () => '', (p) => `${fix1(p.assistsPg)} за матч`));
+    html += block('cs', 'Сухие матчи', sortBy((p) => p.cs), prow((p) => p.cs, () => '', (p) => `${Math.round(p.csPct)}% матчей`));
+    html += block('ppg', 'Очки за матч', sortBy((p) => p.ppg, (p) => !p.smallSample), prow((p) => fix1(p.ppg), () => '', (p) => `${p.w}-${p.d}-${p.l}`),
+      `От ${nWord(st.minGames, 'матча', 'матчей', 'матчей')}`);
 
     const minPair = Math.max(3, Math.round(st.minGames / 2));
     const pairs = st.pairs.filter((x) => x.games >= minPair).sort((a, b) => b.ppg - a.ppg || b.games - a.games);
     html += block('pairs', 'Лучшие связки', pairs, (x, i) => `<li><div class="item"><span class="rank">${i + 1}</span>
       <span style="display:flex">${avatar(x.a, 's')}<span style="margin-left:-6px">${avatar(x.b, 's')}</span></span>
-      <span class="main"><span class="nm">${esc(x.a)} и ${esc(x.b)}</span><span class="sub">${nWord(x.games, 'матч', 'матча', 'матчей')} вместе · ${x.w}-${x.d}-${x.l}</span></span>
-      <span class="val"><b>${fix1(x.ppg)}</b><span>очк/матч</span></span></div></li>`, `Пары, сыгравшие вместе от ${nWord(minPair, 'матча', 'матчей', 'матчей')}.`);
+      <span class="main"><span class="nm">${esc(x.a)} и ${esc(x.b)}</span><span class="sub">${nWord(x.games, 'матч', 'матча', 'матчей')} · ${x.w}-${x.d}-${x.l}</span></span>
+      <span class="val"><b>${fix1(x.ppg)}</b><span>очк/матч</span></span></div></li>`, `Очки за матч вместе, от ${nWord(minPair, 'матча', 'матчей', 'матчей')}`);
     html += block('links', 'Пас — гол', st.links, (l, i) => `<li><div class="item"><span class="rank">${i + 1}</span>
       <span class="main"><span class="nm">${esc(l.from)} <span class="dim">→</span> ${esc(l.to)}</span></span>
-      <span class="val"><b>${l.count}</b><span>${plural(l.count, 'раз', 'раза', 'раз')}</span></span></div></li>`);
+      <span class="val"><b>${l.count}</b></span></div></li>`);
     return html;
   }
 
