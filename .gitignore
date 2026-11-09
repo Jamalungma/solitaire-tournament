@@ -2,4 +2,5 @@
 .claude/settings.local.json
 __pycache__/
 *.pyc
-participants.json
+league.json
+league.tmp

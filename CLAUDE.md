@@ -1,27 +1,42 @@
-# Турнир по Косынке
+# Футбольная лига
 
 ## Описание
-Сайт регистрации на онлайн-турнир по косынке. Участники заполняют форму, данные сохраняются на сервере.
+Сайт любительской футбольной лиги (в репозитории solitaire-tournament — раньше тут был турнир по косынке).
+Каждый тур игроки делятся на 2–4 цветные команды, команды играют короткие матчи между собой.
+Сайт считает таблицу игроков, MVP тура и месяца, рейтинги, связки, ведёт лайв-матч с таймером
+и подбирает равные составы. Дизайн — светлый, в стиле приложения Locals.
 
 ## Стек
-- Frontend: HTML/CSS/JS — index.html (главная), admin.html (админка)
+- Frontend: HTML/CSS/JS в папке public/ (сервер раздаёт только её)
+  - public/index.html — оболочка страницы, иконки
+  - public/styles.css — стили
+  - public/league.js — вся логика расчётов без интерфейса (таблица, MVP, рейтинг, ротация, подбор составов)
+  - public/app.js — экраны, роутер (#/, #/tours, #/tour/ID, #/live, #/players, #/player/ИМЯ, #/stats, #/new, #/roster/ID, #/settings)
 - Backend: Python, FastAPI — server.py
-- Данные: participants.json
+- Данные: вся лига одним JSON-документом. С DATABASE_URL — в Postgres (таблица league), без него — в файле league.json
 
 ## Запуск сервера
 ```
 cd ~/solitaire-tournament
-python3 -m uvicorn server:app --host 0.0.0.0 --port 8000
+ADMIN_PASSWORD=придумай-пароль python3 -m uvicorn server:app --host 0.0.0.0 --port 8000
 ```
+Без ADMIN_PASSWORD сайт только для чтения. На Railway задать переменные DATABASE_URL и ADMIN_PASSWORD.
+Демо-данные: войти в настройках (шестерёнка/замок) и нажать «Заполнить демо-данными» (кнопка есть, пока нет туров).
 
 ## API
-- GET /participants — список всех участников
-- POST /register — регистрация участника {name, email, level}
-- DELETE /participants/{email} — удалить участника
+- GET /api/league — {data, version, live, editable}
+- GET /api/live — {live, version} (сайт опрашивает каждые 4 с во время матча)
+- POST /api/login {password} — проверить пароль организатора
+- PUT /api/league {data, version} + заголовок X-Admin-Password — сохранить лигу (409, если версия устарела)
+- PUT /api/live {live} + X-Admin-Password — текущий лайв-матч
+
+## Тесты
+- node test_league.js — логика лиги
+- python -m pytest test_server.py — API (с DATABASE_URL идёт через Postgres, иначе через временный файл)
 
 ## Правила
 - Сервер всегда на порту 8000
-- Не удалять participants.json — там живые данные
+- Не удалять league.json и данные в Postgres — там живые данные; перед экспериментами скачать копию в настройках
 
 ## Контекст обучения
 Пользователь — продуктовый дизайнер, новичок в разработке. Изучает Claude Code и разработку с нуля.
