@@ -30,7 +30,6 @@
   const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
   const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
   const WEEKDAYS = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-  const AVATAR_COLORS = ['#ffd23f', '#ffb4a2', '#b8e0d2', '#c3b8ff', '#ffd6a5', '#a0d2ff', '#e4c1f9', '#caffbf', '#ffc6e0', '#d4e09b'];
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const enc = encodeURIComponent;
@@ -50,19 +49,19 @@
   const nWord = (n, one, few, many) => `${n} ${plural(n, one, few, many)}`;
   const fix1 = (x) => (Math.round(x * 10) / 10).toLocaleString('ru-RU');
   const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-  const colorFor = (s) => {
+  // Оттенок аватара по имени (0–359), чтобы у каждого игрока был свой цвет
+  const hueFor = (s) => {
     let h = 2166136261;
     for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
     h ^= h >>> 15;
-    return AVATAR_COLORS[(h >>> 0) % AVATAR_COLORS.length];
+    return (h >>> 0) % 360;
   };
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const isGk = (name) => !!(S.data.players.find((p) => p.name === name) || {}).gk;
 
   const tn = (k) => LG.teamName(S.data, k);
-  const dot = (k) => `<span class="team-dot" style="background:var(--${k})"></span>`;
-  const avatar = (name, size) => `<span class="ava ${size || ''}" style="background:${colorFor(name)}">${esc(initials(name))}${isGk(name) ? '<span class="gk" title="Вратарь">🧤</span>' : ''}</span>`;
+  const avatar = (name, size) => `<span class="ava ${size || ''}" style="--h:${hueFor(name)}">${esc(initials(name))}</span>`;
   const playerHref = (name) => '#/player/' + enc(name);
   const icon = (id) => `<svg class="icon"><use href="#i-${id}"/></svg>`;
 
@@ -170,50 +169,54 @@
   const modalOpen = () => !!modalRender;
 
   /* ---------- Общие куски разметки ---------- */
-  function topMain(onCover) {
-    return `<header class="topbar ${onCover ? 'on-cover' : ''}">
-      <a class="wordmark" href="#/"><i>⚽</i><span>${esc(S.data.name || 'Лига')}</span></a>
-      <a class="round-btn" href="#/settings" aria-label="${isEditor() ? 'Настройки' : 'Вход для организатора'}">${icon(isEditor() ? 'gear' : 'lock')}</a>
-    </header>`;
-  }
-  function topBack(title, back, onCover) {
-    return `<header class="topbar ${onCover ? 'on-cover' : ''}">
-      <div class="back-title"><a class="round-btn ${onCover ? 'glass' : ''}" href="${back}" aria-label="Назад">${icon('back')}</a>${title ? `<h1>${esc(title)}</h1>` : ''}</div>
-    </header>`;
-  }
-  const empty = (e, title, text, action) => `<div class="empty"><div class="e">${e}</div><b>${esc(title)}</b>${text ? `<p>${esc(text)}</p>` : ''}${action || ''}</div>`;
+  const TINTS = { R: 'rgba(255,69,58,.55)', B: 'rgba(10,132,255,.6)', G: 'rgba(48,209,88,.5)', Y: 'rgba(255,214,10,.42)' };
+  const DEFAULT_TINT = 'rgba(48,209,88,.42)';
+  let tint = [DEFAULT_TINT, 'transparent'];
+  const setTint = (a, b) => { tint = [a || DEFAULT_TINT, b || 'transparent']; };
 
-  function periodPills() {
+  // Футболка в цвете команды
+  const kit = (k, size) => `<svg class="kit ${size || ''}" viewBox="0 0 32 32" aria-hidden="true">
+    <path d="M10.6 4.2 4 7.8l2.6 6.1 3-1.3V28h12.8V12.6l3 1.3L28 7.8l-6.6-3.6c-1 1.9-3 3.1-5.4 3.1s-4.4-1.2-5.4-3.1z" fill="var(--${k})"/>
+    <path d="M10.6 4.2 4 7.8l2.6 6.1 3-1.3V28h12.8V12.6l3 1.3L28 7.8l-6.6-3.6c-1 1.9-3 3.1-5.4 3.1s-4.4-1.2-5.4-3.1z" fill="url(#kit-shade)"/>
+    <path d="M10.6 4.2c1 1.9 3 3.1 5.4 3.1s4.4-1.2 5.4-3.1" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1.2"/></svg>`;
+  const gkTag = (name) => (isGk(name) ? '<span class="gk" title="Вратарь">ВР</span>' : '');
+  const head = (title, sub, right) => `<header class="head"><h1 class="title">${title}${sub ? `<small>${sub}</small>` : ''}</h1>${right || ''}</header>`;
+  const mainRight = () => (isEditor()
+    ? `<a class="glass-btn round" href="#/settings" aria-label="Настройки">${icon('gear')}</a>`
+    : `<a class="glass-btn" href="#/settings">${icon('lock')}Войти</a>`);
+  const backRow = (href, right) => `<div class="back-row"><a class="glass-btn round" href="${href}" aria-label="Назад">${icon('back')}</a>${right || ''}</div>`;
+  const empty = (ic, title, text, action) => `<div class="empty">${ic ? icon(ic) : ''}<b>${esc(title)}</b>${text ? `<p>${esc(text)}</p>` : ''}${action || ''}</div>`;
+  const panelHead = (title, right) => `<div class="panel-head left"><span>${title}</span>${right || ''}</div>`;
+  const moreLink = (href, label) => `<a class="link" href="${href}">${label}${icon('chev')}</a>`;
+
+  function periodSegments() {
     const months = LG.monthsOf(S.data);
     if (!months.length) return '';
-    const pill = (v, label) => `<button class="pill" data-act="period" data-v="${v}" aria-pressed="${S.period === v}">${esc(label)}</button>`;
-    return `<div class="pills">${pill('all', 'Всё время')}${months.map((m) => pill(m, fmtMonth(m))).join('')}</div>`;
+    const seg = (v, label) => `<button class="seg" data-act="period" data-v="${v}" aria-pressed="${S.period === v}">${esc(label)}</button>`;
+    return `<div class="segments">${seg('all', 'Всё время')}${months.map((m) => seg(m, fmtMonth(m))).join('')}</div>`;
   }
 
-  function goalsLine(e) {
-    if (e.own) return `${esc(e.scorer || '?')} (авт.)`;
-    return `${esc(e.scorer || 'Неизвестно')}${e.assist ? ` <span class="muted">(${esc(e.assist)})</span>` : ''}`;
+  function eventText(e) {
+    if (e.own) return `${esc(e.scorer || '?')} <span class="dim">(авт.)</span>`;
+    return `${esc(e.scorer || 'Без автора')}${e.assist ? ` <span class="dim">· ${esc(e.assist)}</span>` : ''}`;
   }
-  const minute = (e) => (e.ms != null ? `${Math.floor(e.ms / 60000) + 1}′ ` : '');
+  const minute = (e) => (e.ms != null ? `${Math.floor(e.ms / 60000) + 1}′` : '');
 
-  function matchHtml(t, m, i, editable) {
+  function gameHtml(t, m, n, editable, compact) {
     const s = LG.matchScore(m);
     const evA = (m.events || []).filter((e) => e.team === m.a);
     const evB = (m.events || []).filter((e) => e.team === m.b);
-    const goals = evA.length || evB.length
-      ? `<div class="goals"><div>${evA.map((e) => `⚽ ${goalsLine(e)}`).join('<br>')}</div><div class="b">${evB.map((e) => `${goalsLine(e)} ⚽`).join('<br>')}</div></div>`
-      : '';
-    return `<div class="match ${editable ? 'editable' : ''}" ${editable ? `data-act="edit-match" data-tour="${esc(t.id)}" data-match="${esc(m.id)}" title="Изменить матч"` : ''}>
-      <div class="side">${dot(m.a)}<span>${esc(tn(m.a))}</span></div>
-      <div class="sc num">${s.a}:${s.b}</div>
-      <div class="side b"><span>${esc(tn(m.b))}</span>${dot(m.b)}</div>
-      ${goals}
+    const scorers = evA.length || evB.length
+      ? `<div class="scorers"><div>${evA.map(eventText).join('<br>')}</div><div class="b">${evB.map(eventText).join('<br>')}</div></div>` : '';
+    return `<div class="game ${editable ? 'editable' : ''} ${compact ? 'compact' : ''}" ${editable ? `data-act="edit-match" data-tour="${esc(t.id)}" data-match="${esc(m.id)}" title="Изменить матч"` : ''}>
+      <div class="team a">${kit(m.a, compact ? '' : 'l')}<span>${esc(tn(m.a))}</span></div>
+      <div class="mid"><span class="score ${s.a < s.b ? 'lose' : ''}">${s.a}</span><span class="state">${compact ? '' : 'Матч'}<b>${n}</b></span><span class="score ${s.b < s.a ? 'lose' : ''}">${s.b}</span></div>
+      <div class="team b">${kit(m.b, compact ? '' : 'l')}<span>${esc(tn(m.b))}</span></div>
+      ${scorers}
     </div>`;
   }
 
-  function liveScore(L) {
-    return LG.matchScore({ a: L.a, b: L.b, events: L.events });
-  }
+  const liveScore = (L) => LG.matchScore({ a: L.a, b: L.b, events: L.events });
   const elapsed = (L) => (L.acc || 0) + (L.run ? Date.now() - L.run : 0);
   function clockText(L) {
     const left = (L.len || 420) * 1000 - elapsed(L);
@@ -221,142 +224,145 @@
     return (left < 0 ? '+' : '') + Math.floor(a / 60000) + ':' + pad(Math.floor((a % 60000) / 1000));
   }
 
-  function liveBanner() {
+  function liveStrip() {
     const L = S.live;
-    if (!L) return '';
+    if (!L || L.matchId) return '';
     const s = liveScore(L);
-    return `<a class="live-banner" href="#/live"><span class="live-badge">LIVE</span>
-      <span>${dot(L.a)} ${esc(tn(L.a))} — ${esc(tn(L.b))} ${dot(L.b)}</span><span class="sc num">${s.a}:${s.b}</span></a>`;
+    return `<a class="panel live-strip" href="#/live"><span><span class="live-dot"></span>Идёт матч</span>
+      ${kit(L.a)} <span class="dim">—</span> ${kit(L.b)}<span class="sc">${s.a}:${s.b}</span></a>`;
   }
 
   /* ---------- Таблица ---------- */
   function vTable() {
     const st = stats();
     const all = allStats();
-    const players = new Set(S.data.players.map((p) => p.name)).size;
-    let html = topMain(true) + `<section class="cover">
-      <div class="ball" aria-hidden="true">⚽</div>
-      <h1>${esc(S.data.name || 'Лига')}</h1>
-      <div class="sub">${S.data.season ? esc(S.data.season) + ' · ' : ''}${nWord(all.tours.length, 'тур', 'тура', 'туров')} · ${nWord(players, 'игрок', 'игрока', 'игроков')}</div>
-    </section><main class="sheet">`;
+    const playersCount = S.data.players.length;
+    let html = head(esc(S.data.name || 'Лига'),
+      `${S.data.season ? esc(S.data.season) + ' · ' : ''}${nWord(all.tours.length, 'тур', 'тура', 'туров')} · ${nWord(playersCount, 'игрок', 'игрока', 'игроков')}`, mainRight());
 
     if (!all.tours.length) {
-      html += `<section class="section">${empty('🏟️', 'Пока нет ни одного тура',
+      return html + `<section class="panel">${empty('cal', 'Пока нет ни одного тура',
         isEditor() ? 'Создайте первый тур: выберите игроков, и сайт сам подберёт равные составы.' : 'Организатор ещё не внёс игры.',
-        isEditor() ? `<a class="btn btn-black" href="#/new">${icon('plus')}Новый тур</a>` : '')}</section></main>`;
-      return html;
+        isEditor() ? `<a class="btn btn-white" href="#/new">${icon('plus')}Новый тур</a>` : '')}</section>`;
     }
 
-    html += `<section class="section" style="padding-bottom:6px">${periodPills()}${S.live ? `<div style="margin-top:12px">${liveBanner()}</div>` : ''}</section>`;
+    html += liveStrip();
 
-    const lastTour = st.tours[st.tours.length - 1];
-    const mvp = lastTour && st.tourInfo[lastTour.id].mvp;
-    if (mvp) {
-      html += `<section class="section" style="padding-top:8px"><a class="yellow-card" href="#/tour/${enc(lastTour.id)}">
-        <div class="label">MVP тура · ${fmtDate(lastTour.date)}</div>
-        <div class="who">${avatar(mvp.name)}<div><b>${esc(mvp.name)}</b>
-          <span>${nWord(mvp.goals, 'гол', 'гола', 'голов')} · ${nWord(mvp.assists, 'пас', 'паса', 'пасов')} · ${nWord(mvp.w, 'победа', 'победы', 'побед')}</span></div>
-          <div class="score"><b class="num">${mvp.score}</b><span>${plural(mvp.score, 'балл', 'балла', 'баллов')}</span></div></div>
-      </a></section>`;
-    }
+    // Последний тур
+    const last = all.tours[all.tours.length - 1];
+    const lastInfo = all.tourInfo[last.id];
+    const games = last.matches.map((m, i) => ({ m, n: i + 1 })).slice(-3).reverse();
+    html += `<section class="panel">${panelHead(`Последний тур · ${fmtDate(last.date)}`, moreLink('#/tour/' + enc(last.id), 'Весь тур'))}
+      ${games.length ? `<div class="panel-body" style="padding-top:0">${games.map((g) => gameHtml(last, g.m, g.n, false)).join('')}</div>` : `<p class="caption">Матчей ещё не было</p>`}
+      ${lastInfo.mvp ? `<div class="sep"></div><a class="mvp" href="${playerHref(lastInfo.mvp.name)}" style="padding-top:14px">${avatar(lastInfo.mvp.name)}
+        <div class="who"><span><svg class="star"><use href="#i-star"/></svg> MVP тура</span><b>${esc(lastInfo.mvp.name)}</b></div>
+        <div class="big"><b>${lastInfo.mvp.score}</b><span>${plural(lastInfo.mvp.score, 'балл', 'балла', 'баллов')}</span></div></a>` : ''}
+    </section>`;
 
+    // Лидеры за период
     const by = (f, filter) => [...st.list].filter(filter || (() => true)).sort((a, b) => f(b) - f(a))[0];
     const regular = (p) => !p.smallSample;
     const leaders = [
-      ['⚽', 'Бомбардир', by((p) => p.goals * 1000 + p.assists), (p) => nWord(p.goals, 'гол', 'гола', 'голов')],
-      ['👟', 'Ассистент', by((p) => p.assists * 1000 + p.goals), (p) => nWord(p.assists, 'пас', 'паса', 'пасов')],
-      ['⭐', 'Рейтинг', by((p) => p.rating, regular), (p) => `${p.rating}`],
-      ['🏆', 'Побед', by((p) => p.winPct, regular), (p) => `${Math.round(p.winPct)}%`],
-      ['🔁', 'Больше игр', by((p) => p.games), (p) => nWord(p.games, 'матч', 'матча', 'матчей')],
-    ].filter((x) => x[2]);
-    html += `<div class="chips-row">${leaders.map(([e, k, p, v]) => `<a class="info-card" href="${playerHref(p.name)}"><span class="emoji">${e}</span><div><span class="k">${k}</span><b>${esc(p.name)}</b><span class="v">${v(p)}</span></div></a>`).join('')}</div>`;
+      ['Голы', by((p) => p.goals * 1000 + p.assists), (p) => p.goals],
+      ['Пасы', by((p) => p.assists * 1000 + p.goals), (p) => p.assists],
+      ['Рейтинг', by((p) => p.rating, regular), (p) => p.rating],
+      ['Победы', by((p) => p.winPct, regular), (p) => Math.round(p.winPct) + '%'],
+      ['Сухие', by((p) => p.cs), (p) => p.cs],
+      ['Матчи', by((p) => p.games), (p) => p.games],
+    ];
+    const leaderCell = ([k, p, v]) => (p
+      ? `<a class="leader" href="${playerHref(p.name)}"><span class="k">${k}</span>${avatar(p.name)}<span class="n">${esc(p.name)}</span><span class="v">${v(p)}</span></a>`
+      : `<div class="leader"><span class="k">${k}</span><span class="v dim">—</span></div>`);
+    html += `<section class="panel">${periodSegments()}
+      <div class="leaders">${leaders.slice(0, 3).map(leaderCell).join('')}</div>
+      <div class="leaders">${leaders.slice(3).map(leaderCell).join('')}</div></section>`;
+
+    // Таблица
+    html += `<section class="panel">${panelHead('Таблица', `<span class="muted" style="font-size:13px;font-weight:500">${S.period === 'all' ? 'всё время' : esc(fmtMonth(S.period).toLowerCase())}</span>`)}
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th class="name">Игрок</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>+/−</th><th>О</th></tr></thead><tbody>
+      ${st.list.map((p) => {
+        let mv = '';
+        if (p.prevPos != null && p.prevPos !== p.pos) mv = p.prevPos > p.pos ? `<span class="mv up">▲${p.prevPos - p.pos}</span>` : `<span class="mv down">▼${p.pos - p.prevPos}</span>`;
+        return `<tr class="${p.pos === 4 ? 'cut' : ''}"><td>${p.pos}${mv}</td>
+          <td class="name"><a href="${playerHref(p.name)}">${avatar(p.name, 's')}<span class="t">${esc(p.name)}</span>${gkTag(p.name)}</a></td>
+          <td>${p.games}</td><td>${p.w}</td><td>${p.d}</td><td>${p.l}</td><td>${p.gd > 0 ? '+' : ''}${p.gd}</td><td class="pts">${p.pts}</td></tr>`;
+      }).join('')}
+      </tbody></table></div>
+      <p class="caption" style="padding-top:10px">Очки игрока — очки его команды в матчах, где он играл: 3 за победу, 1 за ничью.</p></section>`;
 
     if (S.period === 'all') {
       const mm = LG.monthMVPs(S.data, todayStr());
       if (mm.length) {
-        html += `<div class="gap"></div><section class="section" style="padding-bottom:6px"><h2 class="h2">MVP месяца</h2></section>
-          <div class="chips-row">${mm.map((x) => `<a class="info-card" href="${playerHref(x.player.name)}">${avatar(x.player.name, 's')}<div><span class="k">${esc(fmtMonth(x.month))}</span><b>${esc(x.player.name)}</b><span class="v">${nWord(x.score, 'балл', 'балла', 'баллов')}</span></div></a>`).join('')}</div>`;
+        html += `<section class="panel">${panelHead('MVP месяца')}<ul class="list">${mm.map((x) => `<li><a class="item" href="${playerHref(x.player.name)}">${avatar(x.player.name)}
+          <span class="main"><span class="nm">${esc(x.player.name)}</span><span class="sub">${esc(fmtMonth(x.month))}</span></span>
+          <span class="val"><b>${x.score}</b><span>${plural(x.score, 'балл', 'балла', 'баллов')}</span></span></a></li>`).join('')}</ul></section>`;
       }
     }
-
-    html += `<div class="gap"></div><section class="section"><h2 class="h2"><span>Таблица<span class="count">${st.list.length}</span></span></h2>
-      <ul class="rows">${st.list.map((p) => {
-        let move = '';
-        if (p.prevPos != null && p.prevPos !== p.pos) move = p.prevPos > p.pos ? `<small class="up">▲${p.prevPos - p.pos}</small>` : `<small class="down">▼${p.pos - p.prevPos}</small>`;
-        return `<li><a class="row" href="${playerHref(p.name)}">
-          <span class="pos num">${p.pos}${move}</span>${avatar(p.name)}
-          <span class="main"><span class="name">${esc(p.name)}</span>
-            <span class="meta num">И ${p.games} · ${p.w}-${p.d}-${p.l} · ⚽ ${p.goals} · 👟 ${p.assists}</span></span>
-          <span class="end"><span class="big num">${p.pts}</span><span class="meta">${plural(p.pts, 'очко', 'очка', 'очков')}</span></span>
-        </a></li>`;
-      }).join('')}</ul>
-      <p class="hint">Очки игрока — сумма очков его команды в матчах, где он играл: 3 за победу, 1 за ничью.</p></section></main>`;
     return html;
   }
 
   /* ---------- Туры ---------- */
   function vTours() {
     const st = allStats();
-    let html = topMain() + `<main><section class="section"><h2 class="h2"><span>Туры<span class="count">${st.tours.length || ''}</span></span>
-      ${isEditor() ? `<a class="btn btn-black sm" href="#/new">${icon('plus')}Новый тур</a>` : ''}</h2>`;
-    if (S.live) html += `<div style="margin-bottom:12px">${liveBanner()}</div>`;
+    let html = head('Туры', st.tours.length ? nWord(st.tours.length, 'тур', 'тура', 'туров') : '',
+      isEditor() ? `<a class="glass-btn" href="#/new">${icon('plus')}Тур</a>` : mainRight());
+    html += liveStrip();
     if (!st.tours.length) {
-      html += empty('📅', 'Туров пока нет', isEditor() ? 'Нажмите «Новый тур», чтобы собрать составы.' : 'Организатор ещё не внёс игры.');
-    } else {
-      html += [...st.tours].reverse().map((t) => {
-        const info = st.tourInfo[t.id];
-        return `<a class="card tour-card" href="#/tour/${enc(t.id)}">
-          <div class="top"><span class="date">${fmtDate(t.date)}</span><span class="muted">${fmtWeekday(t.date)} · ${nWord(t.matches.length, 'матч', 'матча', 'матчей')}</span></div>
-          <div class="teams">${info.standings.map((s, i) => `<span class="tag ${i === 0 && s.games ? 'yellow' : ''}">${dot(s.key)} ${esc(tn(s.key))} · ${s.pts}</span>`).join('')}</div>
-          ${info.mvp ? `<div class="mvp">⭐ MVP: <b>${esc(info.mvp.name)}</b> · ${nWord(info.mvp.score, 'балл', 'балла', 'баллов')}</div>` : ''}
-        </a>`;
-      }).join('');
+      return html + `<section class="panel">${empty('cal', 'Туров пока нет', isEditor() ? 'Нажмите «Тур», чтобы собрать составы.' : 'Организатор ещё не внёс игры.')}</section>`;
     }
-    return html + '</section></main>';
+    html += `<section class="panel">${[...st.tours].reverse().map((t) => {
+      const info = st.tourInfo[t.id];
+      return `<a class="tour-row" href="#/tour/${enc(t.id)}">
+        <div class="top"><span class="d">${fmtDate(t.date)}</span><span class="muted">${fmtWeekday(t.date)} · ${nWord(t.matches.length, 'матч', 'матча', 'матчей')}</span></div>
+        <div class="places">${info.standings.map((s, i) => `<span class="pl ${i === 0 && s.games ? 'first' : ''}">${kit(s.key)}${esc(tn(s.key))} <b>${s.pts}</b></span>`).join('')}</div>
+        ${info.mvp ? `<div class="m"><svg class="star"><use href="#i-star"/></svg> ${esc(info.mvp.name)} · ${nWord(info.mvp.score, 'балл', 'балла', 'баллов')}</div>` : ''}
+      </a>`;
+    }).join('')}</section>`;
+    return html;
   }
 
   function vTour(id) {
     const t = S.data.tours.find((x) => x.id === id);
-    if (!t) return topBack('Тур', '#/tours') + `<main class="section">${empty('🤷', 'Тур не найден', 'Возможно, его удалили.')}</main>`;
+    if (!t) return backRow('#/tours') + `<section class="panel" style="margin-top:16px">${empty('cal', 'Тур не найден', 'Возможно, его удалили.')}</section>`;
     const info = allStats().tourInfo[t.id];
     const ed = isEditor();
-    let html = topBack('', '#/tours', true) + `<section class="cover small">
-      <h1>${fmtDate(t.date)}</h1>
-      <div class="sub">${fmtWeekday(t.date)} · ${nWord(t.matches.length, 'матч', 'матча', 'матчей')}${info.mvp ? ` · MVP <b>${esc(info.mvp.name)}</b>` : ''}</div>
-    </section><main class="sheet">`;
+    const winner = info.standings[0];
+    if (winner && winner.games) setTint(TINTS[winner.key], info.standings[1] && TINTS[info.standings[1].key].replace(/[\d.]+\)$/, '.25)'));
 
+    let html = backRow('#/tours') + head(fmtDate(t.date), `${fmtWeekday(t.date)} · ${nWord(t.matches.length, 'матч', 'матча', 'матчей')}`);
     if (ed) {
-      html += `<section class="section"><div class="actions">
-        <button class="btn btn-black" data-act="live-from-tour" data-tour="${esc(t.id)}">${icon('play')}Матч</button>
-        <a class="btn btn-gray" href="#/roster/${enc(t.id)}">${icon('edit')}Составы</a></div></section>`;
+      html += `<div class="btn-row" style="margin:0 0 12px">
+        <button class="btn btn-white" data-act="live-from-tour" data-tour="${esc(t.id)}">${icon('play')}Матч</button>
+        <a class="btn btn-glass" href="#/roster/${enc(t.id)}">${icon('edit')}Составы</a></div>`;
     }
 
-    html += `<section class="section"><h2 class="h2">Таблица тура</h2>
-      <table class="team-table num"><thead><tr><th></th><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Мячи</th><th>О</th></tr></thead><tbody>
-      ${info.standings.map((s, i) => `<tr><td>${i + 1}</td><td><span class="tn">${dot(s.key)}${esc(tn(s.key))}</span></td><td>${s.games}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}:${s.ga}</td><td class="pts">${s.pts}</td></tr>`).join('')}
-      </tbody></table></section><div class="gap"></div>`;
+    html += `<section class="panel">${panelHead('Таблица тура')}
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>#</th><th class="name">Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Мячи</th><th>О</th></tr></thead><tbody>
+      ${info.standings.map((s, i) => `<tr><td>${i + 1}</td><td class="name"><span class="n">${kit(s.key)}<span class="t">${esc(tn(s.key))}</span></span></td>
+        <td>${s.games}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gf}:${s.ga}</td><td class="pts">${s.pts}</td></tr>`).join('')}
+      </tbody></table></div><div style="height:8px"></div></section>`;
 
-    html += `<section class="section"><h2 class="h2"><span>Матчи<span class="count">${t.matches.length}</span></span>${ed && t.matches.length ? '<span class="muted" style="font-size:13px;font-weight:500">нажмите, чтобы изменить</span>' : ''}</h2>
-      ${t.matches.length ? t.matches.map((m, i) => matchHtml(t, m, i, ed)).join('') : empty('⚽', 'Матчей ещё не было', ed ? 'Нажмите «Матч», чтобы начать первый.' : '')}</section>`;
+    html += `<section class="panel">${panelHead(`Матчи <span class="muted">${t.matches.length}</span>`, ed && t.matches.length ? '<span class="muted" style="font-size:13px;font-weight:500">нажмите, чтобы изменить</span>' : '')}
+      ${t.matches.length ? `<div class="panel-body" style="padding-top:0">${t.matches.map((m, i) => gameHtml(t, m, i + 1, ed, true)).join('')}</div>`
+        : empty('', 'Матчей ещё не было', ed ? 'Нажмите «Матч», чтобы начать первый.' : '')}</section>`;
 
     if (info.players.length && t.matches.length) {
-      html += `<div class="gap"></div><section class="section"><h2 class="h2">MVP тура</h2><ul class="rows">
-        ${info.players.slice(0, 5).map((p, i) => `<li><a class="row" href="${playerHref(p.name)}">
-          <span class="pos num">${i === 0 ? '⭐' : i + 1}</span>${avatar(p.name)}
-          <span class="main"><span class="name">${esc(p.name)}</span><span class="meta">${dot(p.key)} ⚽ ${p.goals} · 👟 ${p.assists} · ${p.w}-${p.d}-${p.l}${p.cs ? ` · 🧱 ${p.cs}` : ''}</span></span>
-          <span class="end"><span class="big num">${p.score}</span><span class="meta">${plural(p.score, 'балл', 'балла', 'баллов')}</span></span></a></li>`).join('')}
-        </ul><p class="hint">Баллы: 2 за гол, 2 за пас, 2 за победу, 1 за ничью, 1 за сухой матч.</p></section>`;
+      html += `<section class="panel">${panelHead('Лучшие в туре')}<ul class="list">
+        ${info.players.slice(0, 5).map((p, i) => `<li><a class="item" href="${playerHref(p.name)}">
+          <span class="rank">${i === 0 ? '<svg class="star"><use href="#i-star"/></svg>' : i + 1}</span>${avatar(p.name)}
+          <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${kit(p.key)} голы ${p.goals} · пасы ${p.assists} · ${p.w}-${p.d}-${p.l}</span></span>
+          <span class="val"><b>${p.score}</b><span>${plural(p.score, 'балл', 'балла', 'баллов')}</span></span></a></li>`).join('')}
+        </ul><p class="caption" style="padding-top:8px">Баллы: 2 за гол, 2 за пас, 2 за победу, 1 за ничью, 1 за сухой матч.</p></section>`;
     }
 
-    html += `<div class="gap"></div><section class="section"><h2 class="h2">Составы</h2><div class="rosters">
-      ${Object.entries(t.teams).map(([k, names]) => {
-        const place = info.standings.findIndex((s) => s.key === k) + 1;
-        return `<div class="roster"><h3>${dot(k)}${esc(tn(k))}<span class="muted">${place ? place + '-е место' : ''}</span></h3>
-          <div class="chips">${names.map((n) => `<a class="chip" href="${playerHref(n)}">${isGk(n) ? '🧤 ' : ''}${esc(n)}</a>`).join('')}</div></div>`;
-      }).join('')}</div></section>`;
+    html += `<section class="panel">${panelHead('Составы')}${Object.entries(t.teams).map(([k, names]) => {
+      const place = info.standings.findIndex((s) => s.key === k) + 1;
+      return `<div class="roster"><h3>${kit(k)}${esc(tn(k))}<span class="muted">${place ? place + '-е место' : ''}</span></h3>
+        <div class="chips">${names.map((n) => `<a class="chip" href="${playerHref(n)}">${esc(n)}${gkTag(n)}</a>`).join('')}</div></div>`;
+    }).join('')}</section>`;
 
-    if (ed) html += `<div class="gap"></div><section class="section"><button class="btn btn-danger block" data-act="delete-tour" data-tour="${esc(t.id)}">${icon('trash')}Удалить тур</button></section>`;
-    return html + '</main>';
+    if (ed) html += `<button class="btn btn-danger block" style="margin-top:12px" data-act="delete-tour" data-tour="${esc(t.id)}">${icon('trash')}Удалить тур</button>`;
+    return html;
   }
 
   /* ---------- Матч (лайв) ---------- */
@@ -368,90 +374,101 @@
   function vLive() {
     const L = S.live;
     const ed = isEditor();
-    let html = topMain() + '<main><section class="section">';
 
     if (L) {
       const t = S.data.tours.find((x) => x.id === L.tourId);
       if (!t) {
         if (ed) { S.live = null; pushLive(); }
-        return html + empty('🤷', 'Тур этого матча удалён', '') + '</section></main>';
+        return head('Матч') + `<section class="panel">${empty('', 'Тур этого матча удалён', '')}</section>`;
       }
+      setTint(TINTS[L.a], TINTS[L.b]);
       const s = liveScore(L);
       const editing = !!L.matchId;
       const over = elapsed(L) > (L.len || 420) * 1000;
-      html += `<div class="scoreboard">
-        <div class="head">${editing ? '<span>Изменение матча</span>' : (L.run ? '<span class="live-badge">LIVE</span>' : '<span>Пауза</span>')}
-          <span>Матч ${L.n || t.matches.length + 1} · ${fmtDate(t.date)}</span>
-          <span class="clock ${over ? 'over' : ''}" data-clock>${editing ? '' : clockText(L)}</span></div>
-        <div class="teams">
-          <div class="team">${dot(L.a)}${esc(tn(L.a))}</div>
-          <div class="score">${s.a}:${s.b}</div>
-          <div class="team">${dot(L.b)}${esc(tn(L.b))}</div>
+      let html = editing ? backRow('#/tour/' + enc(t.id)) : '';
+      html += `<section class="match-hero" style="${editing ? '' : 'padding-top:max(26px, calc(env(safe-area-inset-top) + 16px))'}">
+        <div class="meta">${editing ? 'Изменение матча' : (L.run ? '<span class="live-dot"></span>LIVE' : 'Пауза')} · Матч ${L.n || t.matches.length + 1} · ${fmtDate(t.date)}</div>
+        <div class="row">
+          <div class="side">${kit(L.a, 'xl')}${esc(tn(L.a))}</div>
+          <div class="score"><span class="${s.a < s.b ? 'dim' : ''}">${s.a}</span><i>:</i><span class="${s.b < s.a ? 'dim' : ''}">${s.b}</span></div>
+          <div class="side">${kit(L.b, 'xl')}${esc(tn(L.b))}</div>
         </div>
-        ${L.events.length ? `<div class="evs">${L.events.map((e) => `<div>${dot(e.team)}<span>${minute(e)}${goalsLine(e)}</span></div>`).join('')}</div>` : ''}
-      </div>`;
+        ${editing ? '' : `<div class="clock ${over ? 'over' : ''}" data-clock>${clockText(L)}</div>`}
+      </section>`;
+
+      if (L.events.length) {
+        let ra = 0, rb = 0;
+        html += `<section class="panel">${panelHead('Голы')}<div class="timeline">${L.events.map((e) => {
+          if (e.team === L.a) ra++; else rb++;
+          const who = `<div class="who ${e.team === L.a ? 'b' : 'a'}"><b>${eventText(e)}</b><span>${ra}:${rb}</span></div>`;
+          return `<div class="tl">${e.team === L.a ? who + `<div class="min">${minute(e) || '⚽'}</div><div></div>` : `<div></div><div class="min">${minute(e) || '⚽'}</div>` + who}</div>`;
+        }).join('')}</div></section>`;
+      }
 
       if (ed) {
-        html += `<div class="controls">
-          <button class="btn btn-gray" data-act="goal" data-team="${L.a}">${dot(L.a)} Гол</button>
-          <button class="btn btn-gray" data-act="goal" data-team="${L.b}">${dot(L.b)} Гол</button>
-          ${editing ? '' : `<button class="btn btn-gray" data-act="clock">${icon(L.run ? 'pause' : 'play')}${L.run ? 'Пауза' : (elapsed(L) ? 'Дальше' : 'Старт')}</button>`}
-          <button class="btn btn-gray ${editing ? 'full' : ''}" data-act="undo-goal" ${L.events.length ? '' : 'disabled'}>${icon('undo')}Убрать гол</button>
-          <button class="btn btn-black full" data-act="finish">${icon('check')}${editing ? 'Сохранить матч' : 'Завершить матч'}</button>
+        html += `<section class="panel"><div class="controls">
+          <button class="btn btn-glass" data-act="goal" data-team="${L.a}">${kit(L.a)}Гол</button>
+          <button class="btn btn-glass" data-act="goal" data-team="${L.b}">${kit(L.b)}Гол</button>
+          ${editing ? '' : `<button class="btn btn-glass" data-act="clock">${icon(L.run ? 'pause' : 'play')}${L.run ? 'Пауза' : (elapsed(L) ? 'Дальше' : 'Старт')}</button>`}
+          <button class="btn btn-glass ${editing ? 'full' : ''}" data-act="undo-goal" ${L.events.length ? '' : 'disabled'}>${icon('undo')}Убрать гол</button>
+          <button class="btn btn-white full" data-act="finish">${icon('check')}${editing ? 'Сохранить матч' : 'Завершить матч'}</button>
         </div>
-        ${editing ? '' : `<div class="pills" style="margin-top:14px;justify-content:center;flex-wrap:wrap">${[5, 7, 8, 10, 12].map((m) => `<button class="pill" data-act="len" data-v="${m * 60}" aria-pressed="${(L.len || 420) === m * 60}">${m} мин</button>`).join('')}</div>`}
-        <div class="actions" style="margin-top:14px">
-          ${editing ? `<button class="btn btn-danger sm" data-act="delete-match">${icon('trash')}Удалить матч</button>` : ''}
-          <button class="btn btn-gray sm" data-act="cancel-live">${editing ? 'Не сохранять' : 'Отменить матч'}</button></div>`;
+        ${editing ? '' : `<div class="sep"></div><div class="segments" style="padding-bottom:12px">${[5, 7, 8, 10, 12].map((m) => `<button class="seg" data-act="len" data-v="${m * 60}" aria-pressed="${(L.len || 420) === m * 60}">${m} мин</button>`).join('')}</div>`}
+        </section>
+        <div class="btn-row" style="margin-top:12px">
+          ${editing ? `<button class="btn btn-danger sm" data-act="delete-match">${icon('trash')}Удалить</button>` : ''}
+          <button class="btn btn-glass sm" data-act="cancel-live">${editing ? 'Не сохранять' : 'Отменить матч'}</button></div>`;
       }
 
-      if (!editing) {
-        const after = [...t.matches, { a: L.a, b: L.b, events: L.events }];
-        const n = LG.nextPair({ teams: t.teams }, after);
-        if (n && Object.keys(t.teams).length > 2) {
-          html += `<div class="card" style="margin-top:16px"><span class="muted">Если матч закончится так, дальше</span><br>
-            <b>${n.pair ? `${dot(n.pair[0])} ${esc(tn(n.pair[0]))} — ${esc(tn(n.pair[1]))} ${dot(n.pair[1])}` : `ничья: ${esc(tn(n.draw[0]))} или ${esc(tn(n.draw[1]))} против ${esc(tn(n.waiting))}`}</b></div>`;
+      if (!editing && Object.keys(t.teams).length > 2) {
+        const n = LG.nextPair({ teams: t.teams }, [...t.matches, { a: L.a, b: L.b, events: L.events }]);
+        if (n) {
+          html += `<p class="caption" style="margin-top:16px">Если счёт не изменится, дальше играют
+            ${n.pair ? `${kit(n.pair[0])} ${esc(tn(n.pair[0]))} и ${esc(tn(n.pair[1]))} ${kit(n.pair[1])}` : `${esc(tn(n.waiting))} с одной из команд — ничья, выберет организатор`}</p>`;
         }
       }
-      return html + '</section></main>';
+      return html;
     }
 
     const t = currentTour();
+    let html = head('Матч', t ? `Тур ${fmtDate(t.date)}` : '', mainRight());
     if (!ed) {
-      html += empty('📺', 'Сейчас матч не идёт', 'Когда организатор начнёт матч, здесь появится счёт и голы в реальном времени.');
+      html += `<section class="panel">${empty('ball', 'Сейчас матч не идёт', 'Когда организатор начнёт матч, здесь появятся счёт, таймер и голы.')}</section>`;
       if (t && t.matches.length) {
-        const m = t.matches[t.matches.length - 1];
-        html += `<h2 class="h2" style="margin-top:20px">Последний матч · ${fmtDate(t.date)}</h2>${matchHtml(t, m, 0, false)}
-          <a class="btn btn-gray block" style="margin-top:10px" href="#/tour/${enc(t.id)}">Весь тур</a>`;
+        const i = t.matches.length - 1;
+        html += `<section class="panel">${panelHead('Последний матч', moreLink('#/tour/' + enc(t.id), 'Весь тур'))}<div class="panel-body" style="padding-top:0">${gameHtml(t, t.matches[i], i + 1, false)}</div></section>`;
       }
-      return html + '</section></main>';
+      return html;
+    }
+    if (!t) {
+      return html + `<section class="panel">${empty('cal', 'Сначала создайте тур', 'В туре задаются составы команд, после этого можно вести матчи.',
+        `<a class="btn btn-white" href="#/new">${icon('plus')}Новый тур</a>`)}</section>`;
     }
 
-    if (!t) {
-      return html + empty('🏟️', 'Сначала создайте тур', 'В туре задаются составы команд, после этого можно вести матчи.',
-        `<a class="btn btn-black" href="#/new">${icon('plus')}Новый тур</a>`) + '</section></main>';
-    }
     const keys = Object.keys(t.teams);
     const n = LG.nextPair(t);
-    html += `<h2 class="h2">Тур ${fmtDate(t.date)}<a class="link" href="#/tour/${enc(t.id)}">Открыть</a></h2>`;
-    if (t.date < todayStr()) html += `<p class="hint" style="margin:-6px 0 12px">Это прошедший тур. Для новой игры <a href="#/new">создайте тур</a>.</p>`;
+    if (t.date < todayStr()) html += `<p class="hint" style="margin:-4px 4px 12px">Это прошедший тур. Для новой игры <a href="#/new" style="text-decoration:underline">создайте тур</a>.</p>`;
     if (n && n.pair) {
-      html += `<div class="yellow-card"><div class="label">Следующий матч · №${t.matches.length + 1}</div>
-        <div class="who" style="justify-content:center;gap:14px;font-size:20px;font-weight:800">${dot(n.pair[0])} ${esc(tn(n.pair[0]))} — ${esc(tn(n.pair[1]))} ${dot(n.pair[1])}</div>
-        <button class="btn btn-black block" style="margin-top:14px" data-act="start" data-tour="${esc(t.id)}" data-a="${n.pair[0]}" data-b="${n.pair[1]}">${icon('play')}Начать матч</button></div>`;
+      setTint(TINTS[n.pair[0]], TINTS[n.pair[1]]);
+      html += `<section class="panel">${panelHead(`Следующий · матч ${t.matches.length + 1}`)}
+        <div class="panel-body"><div class="game"><div class="team">${kit(n.pair[0], 'l')}<span>${esc(tn(n.pair[0]))}</span></div>
+          <div class="mid"><span></span><span class="state">против</span><span></span></div>
+          <div class="team">${kit(n.pair[1], 'l')}<span>${esc(tn(n.pair[1]))}</span></div></div>
+        <button class="btn btn-white block" data-act="start" data-tour="${esc(t.id)}" data-a="${n.pair[0]}" data-b="${n.pair[1]}">${icon('play')}Начать матч</button></div></section>`;
     } else if (n && n.draw) {
-      html += `<div class="yellow-card"><div class="label">Прошлый матч — ничья</div><p style="margin:8px 0 12px;font-weight:600">Кто остаётся играть с командой «${esc(tn(n.waiting))}»?</p>
-        <div class="actions">${n.draw.map((k) => `<button class="btn btn-black" data-act="start" data-tour="${esc(t.id)}" data-a="${k}" data-b="${n.waiting}">${dot(k)} ${esc(tn(k))}</button>`).join('')}</div></div>`;
+      html += `<section class="panel">${panelHead('Прошлый матч — ничья')}<div class="panel-body">
+        <p class="hint" style="margin-bottom:12px">Кто остаётся играть с командой «${esc(tn(n.waiting))}»?</p>
+        <div class="btn-row">${n.draw.map((k) => `<button class="btn btn-glass" data-act="start" data-tour="${esc(t.id)}" data-a="${k}" data-b="${n.waiting}">${kit(k)}${esc(tn(k))}</button>`).join('')}</div></div></section>`;
     }
     if (keys.length > 2) {
       const pairs = [];
       keys.forEach((a, i) => keys.slice(i + 1).forEach((b) => pairs.push([a, b])));
-      html += `<h2 class="h2" style="margin-top:22px;font-size:16px">Другая пара</h2><div class="chips">${pairs.map(([a, b]) => `<button class="chip" style="background:var(--fill)" data-act="start" data-tour="${esc(t.id)}" data-a="${a}" data-b="${b}">${dot(a)} ${esc(tn(a))} — ${esc(tn(b))} ${dot(b)}</button>`).join('')}</div>`;
+      html += `<section class="panel">${panelHead('Другая пара')}<div class="panel-body"><div class="chips">${pairs.map(([a, b]) => `<button class="chip" data-act="start" data-tour="${esc(t.id)}" data-a="${a}" data-b="${b}">${kit(a)}${esc(tn(a))} — ${esc(tn(b))}${kit(b)}</button>`).join('')}</div></div></section>`;
     }
     if (t.matches.length) {
-      html += `<h2 class="h2" style="margin-top:22px;font-size:16px">Сыграно<span class="count">${t.matches.length}</span></h2>${t.matches.map((m, i) => matchHtml(t, m, i, true)).join('')}`;
+      html += `<section class="panel">${panelHead(`Сыграно <span class="muted">${t.matches.length}</span>`)}<div class="panel-body" style="padding-top:0">${t.matches.map((m, i) => gameHtml(t, m, i + 1, true, true)).reverse().join('')}</div></section>`;
     }
-    return html + '</section></main>';
+    return html;
   }
 
   function goalModal() {
@@ -460,58 +477,63 @@
     const other = g.team === L.a ? L.b : L.a;
     const scorers = g.own ? (t.teams[other] || []) : (t.teams[g.team] || []);
     const assists = (t.teams[g.team] || []).filter((n) => n !== g.scorer);
-    const chip = (act, v, label, on) => `<button class="chip ${on ? 'on' : ''}" style="${on ? '' : 'background:var(--fill)'}" data-act="${act}" data-v="${esc(v)}">${label}</button>`;
-    return `<div class="modal-head"><button class="link-btn" data-act="close-modal">Отмена</button><h2>${dot(g.team)} Гол: ${esc(tn(g.team))}</h2><span></span></div>
-      <div class="group"><h3>${g.own ? `Кто забил в свои ворота (${esc(tn(other))})` : 'Кто забил'}</h3><div class="chips">
+    const chip = (act, v, label, on) => `<button class="chip ${on ? 'on' : ''}" data-act="${act}" data-v="${esc(v)}">${label}</button>`;
+    return `<div class="modal-head"><button class="link-btn" data-act="close-modal">Отмена</button><h2>${kit(g.team)}Гол · ${esc(tn(g.team))}</h2><span></span></div>
+      <div class="group"><h3>${g.own ? `Кто срезал в свои ворота (${esc(tn(other))})` : 'Кто забил'}</h3><div class="chips">
         ${scorers.map((n) => chip('g-scorer', n, esc(n), g.scorer === n)).join('')}
         ${g.own ? '' : chip('g-scorer', '', 'Не знаю', g.scorer === null)}</div></div>
       ${g.own ? '' : `<div class="group"><h3>Голевой пас</h3><div class="chips">
         ${chip('g-assist', '', 'Без паса', !g.assist)}
         ${assists.map((n) => chip('g-assist', n, esc(n), g.assist === n)).join('')}</div></div>`}
-      <div class="group"><div class="chips">${chip('g-own', '', '🙈 Автогол', g.own)}</div></div>
-      <div class="group"><button class="btn btn-yellow block" data-act="g-save" ${g.own && !g.scorer ? 'disabled' : ''}>${icon('check')}Засчитать гол</button></div>`;
+      <div class="group"><div class="chips">${chip('g-own', '', 'Автогол', g.own)}</div></div>
+      <div class="group"><button class="btn btn-white block" data-act="g-save" ${g.own && !g.scorer ? 'disabled' : ''}>${icon('check')}Засчитать гол</button></div>`;
   }
 
   /* ---------- Игроки ---------- */
   function vPlayers() {
     const st = allStats();
-    const sorts = { rating: ['Рейтинг', (p) => p.rating - (p.smallSample ? 100 : 0)], pts: ['Очки', (p) => p.pts], goals: ['Голы', (p) => p.goals * 1000 + p.assists], assists: ['Пасы', (p) => p.assists * 1000 + p.goals], games: ['Игры', (p) => p.games] };
+    const sorts = { rating: ['Рейтинг', (p) => p.rating - (p.smallSample ? 100 : 0)], pts: ['Очки', (p) => p.pts], goals: ['Голы', (p) => p.goals * 1000 + p.assists], assists: ['Пасы', (p) => p.assists * 1000 + p.goals], games: ['Матчи', (p) => p.games] };
     const [, f] = sorts[S.playerSort] || sorts.rating;
     const q = S.search.trim().toLowerCase();
     const list = [...st.list].filter((p) => !q || p.name.toLowerCase().includes(q)).sort((a, b) => f(b) - f(a) || a.name.localeCompare(b.name, 'ru'));
     const idle = S.data.players.filter((p) => !st.byName[p.name] && (!q || p.name.toLowerCase().includes(q)));
+    const valOf = { rating: (p) => [Math.round(p.winPct) + '%', 'побед'], pts: (p) => [p.pts, plural(p.pts, 'очко', 'очка', 'очков')], goals: (p) => [p.goals, plural(p.goals, 'гол', 'гола', 'голов')], assists: (p) => [p.assists, plural(p.assists, 'пас', 'паса', 'пасов')], games: (p) => [p.games, plural(p.games, 'матч', 'матча', 'матчей')] }[S.playerSort] || ((p) => [Math.round(p.winPct) + '%', 'побед']);
 
-    let html = topMain() + `<main><section class="section"><h2 class="h2"><span>Игроки<span class="count">${S.data.players.length}</span></span></h2>
-      <label class="input" style="margin-bottom:12px">${icon('search')}<input type="search" data-input="search" value="${esc(S.search)}" placeholder="Найти игрока" aria-label="Поиск игрока"></label>
-      <div class="pills" style="margin-bottom:6px">${Object.entries(sorts).map(([k, [label]]) => `<button class="pill" data-act="psort" data-v="${k}" aria-pressed="${S.playerSort === k}">${label}</button>`).join('')}</div>
-      <ul class="rows" id="player-list">`;
-    if (!list.length && !idle.length) html += `<li>${empty('🔍', q ? 'Никого не нашлось' : 'Игроков пока нет', q ? '' : 'Игроки появятся, когда организатор создаст тур.')}</li>`;
-    html += list.map((p) => `<li><a class="row" href="${playerHref(p.name)}">
-        <span class="rating num ${p.smallSample ? 'dim' : ''}" title="${p.smallSample ? 'Мало игр для точного рейтинга' : 'Рейтинг'}">${p.rating}</span>
+    let html = head('Игроки', nWord(S.data.players.length, 'игрок', 'игрока', 'игроков'), mainRight());
+    html += `<section class="panel"><div style="padding:12px 12px 0"><label class="input">${icon('search')}<input type="search" data-input="search" value="${esc(S.search)}" placeholder="Найти игрока" aria-label="Поиск игрока"></label></div>
+      <div class="segments">${Object.entries(sorts).map(([k, [label]]) => `<button class="seg" data-act="psort" data-v="${k}" aria-pressed="${S.playerSort === k}">${label}</button>`).join('')}</div>
+      <ul class="list" id="player-list">`;
+    if (!list.length && !idle.length) html += `<li>${empty('search', q ? 'Никого не нашлось' : 'Игроков пока нет', q ? '' : 'Игроки появятся, когда организатор создаст тур.')}</li>`;
+    html += list.map((p) => {
+      const [v, lab] = valOf(p);
+      return `<li><a class="item" href="${playerHref(p.name)}">
+        <span class="rating ${p.smallSample ? 'dim' : p.rating >= 85 ? 'hi' : ''}" title="${p.smallSample ? 'Мало матчей для точного рейтинга' : 'Рейтинг'}">${p.rating}</span>
         ${avatar(p.name)}
-        <span class="main"><span class="name">${esc(p.name)}</span><span class="meta num">${nWord(p.games, 'матч', 'матча', 'матчей')} · ⚽ ${p.goals} · 👟 ${p.assists}</span></span>
-        <span class="end"><span class="big num">${Math.round(p.winPct)}%</span><span class="meta">побед</span></span></a></li>`).join('');
-    html += idle.map((p) => `<li><a class="row" href="${playerHref(p.name)}"><span class="rating dim">—</span>${avatar(p.name)}<span class="main"><span class="name">${esc(p.name)}</span><span class="meta">ещё не играл</span></span></a></li>`).join('');
-    return html + `</ul><p class="hint">Рейтинг от 50 до 99 показывает, как игрок выглядит на фоне остальных: атака и защита его команд, голы и пасы, победы и очки. Серый рейтинг — пока мало матчей.</p></section></main>`;
+        <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${nWord(p.games, 'матч', 'матча', 'матчей')} · голы ${p.goals} · пасы ${p.assists}</span></span>
+        <span class="val"><b>${v}</b><span>${lab}</span></span></a></li>`;
+    }).join('');
+    html += idle.map((p) => `<li><a class="item" href="${playerHref(p.name)}"><span class="rating dim">—</span>${avatar(p.name)}<span class="main"><span class="nm">${esc(p.name)}</span><span class="sub">ещё не играл</span></span></a></li>`).join('');
+    return html + `</ul><p class="caption" style="padding-top:10px">Рейтинг 50–99 сравнивает игрока с остальными: атака и защита его команд, голы, пасы, победы и очки. Серый — пока мало матчей.</p></section>`;
   }
 
-  function radarSvg(r) {
+  function radarSvg(r, h) {
     const axes = [['Атака', r.attack], ['Защита', r.defense], ['Голы', r.goals], ['Пасы', r.passes], ['Победы', r.wins], ['Очки', r.points]];
-    const cx = 160, cy = 132, R = 92;
+    const cx = 165, cy = 128, R = 88;
     const pt = (i, v) => {
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / axes.length;
       return [cx + Math.cos(a) * R * v, cy + Math.sin(a) * R * v];
     };
     const ring = (v) => axes.map((_, i) => pt(i, v).map((x) => x.toFixed(1)).join(',')).join(' ');
-    const area = axes.map(([, v], i) => pt(i, Math.max(0.04, v / 100)).map((x) => x.toFixed(1)).join(',')).join(' ');
-    return `<svg class="radar" viewBox="0 0 320 270" role="img" aria-label="Профиль игрока: ${axes.map(([k, v]) => `${k} ${v}`).join(', ')}">
+    const pts = axes.map(([, v], i) => pt(i, Math.max(0.04, v / 100)));
+    return `<svg class="radar" viewBox="0 0 330 262" style="--h:${h}" role="img" aria-label="Профиль игрока: ${axes.map(([k, v]) => `${k} ${v}`).join(', ')}">
       ${[0.25, 0.5, 0.75, 1].map((v) => `<polygon class="grid" points="${ring(v)}"/>`).join('')}
       ${axes.map((_, i) => { const [x, y] = pt(i, 1); return `<line class="grid" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join('')}
-      <polygon class="area" points="${area}"/>
+      <polygon class="area" points="${pts.map((p) => p.map((x) => x.toFixed(1)).join(',')).join(' ')}"/>
+      ${pts.map(([x, y]) => `<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"/>`).join('')}
       ${axes.map(([k, v], i) => {
         const [x, y] = pt(i, 1.2);
         const anchor = Math.abs(x - cx) < 5 ? 'middle' : x > cx ? 'start' : 'end';
-        return `<text x="${x.toFixed(1)}" y="${(y + (y < cy ? -2 : 8)).toFixed(1)}" text-anchor="${anchor}">${k}<tspan class="pct" dx="4">${v}</tspan></text>`;
+        return `<text x="${x.toFixed(1)}" y="${(y + (y < cy ? -2 : 9)).toFixed(1)}" text-anchor="${anchor}">${k} <tspan class="pct">${v}</tspan></text>`;
       }).join('')}
     </svg>`;
   }
@@ -519,105 +541,111 @@
   function sparkSvg(ranks, total) {
     const pts = ranks.map((r, i) => [i, r]).filter(([, r]) => r != null);
     if (pts.length < 2) return '';
-    const W = 300, H = 70, P = 8;
+    const W = 320, H = 64, P = 7;
     const maxR = Math.max(total, ...pts.map(([, r]) => r));
     const x = (i) => P + (i / (ranks.length - 1)) * (W - 2 * P);
     const y = (r) => P + ((r - 1) / Math.max(1, maxR - 1)) * (H - 2 * P);
     const d = pts.map(([i, r], j) => `${j ? 'L' : 'M'}${x(i).toFixed(1)},${y(r).toFixed(1)}`).join(' ');
+    const area = `${d} L${x(pts[pts.length - 1][0]).toFixed(1)},${H} L${x(pts[0][0]).toFixed(1)},${H} Z`;
     const [li, lr] = pts[pts.length - 1];
-    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Место в таблице по турам"><path class="l" d="${d}"/><circle cx="${x(li).toFixed(1)}" cy="${y(lr).toFixed(1)}" r="5"/></svg>`;
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Место в таблице по турам, сейчас ${lr}">
+      <defs><linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+      <path class="a" d="${area}"/><path class="l" d="${d}"/><circle cx="${x(li).toFixed(1)}" cy="${y(lr).toFixed(1)}" r="4"/></svg>`;
   }
 
   function vPlayer(name) {
     const st = allStats();
     const p = st.byName[name];
     const known = S.data.players.find((x) => x.name === name);
-    if (!p && !known) return topBack('Игрок', '#/players') + `<main class="section">${empty('🤷', 'Игрок не найден', '')}</main>`;
+    if (!p && !known) return backRow('#/players') + `<section class="panel" style="margin-top:16px">${empty('users', 'Игрок не найден', '')}</section>`;
     const ed = isEditor();
-    let html = topBack('', '#/players', true) + `<section class="cover small">
-      <div style="display:grid;justify-items:center;margin-bottom:10px">${avatar(name, 'l')}</div>
-      <h1>${esc(name)}</h1>
-      <div class="sub">${p ? `<b>#${p.pos}</b> в таблице · рейтинг <b>${p.rating}</b>` : 'Ещё не играл'}${isGk(name) ? ' · вратарь' : ''}</div>
-    </section><main class="sheet">`;
+    const h = hueFor(name);
+    setTint(`hsl(${h} 70% 45% / .55)`, `hsl(${(h + 40) % 360} 70% 40% / .3)`);
+
+    let html = backRow('#/players') + `<section style="display:grid;justify-items:center;gap:12px;text-align:center;padding:8px 0 22px">
+      ${avatar(name, 'xl')}
+      <h1 class="title">${esc(name)}${gkTag(name)}<small>${p ? `${p.pos}-е место в таблице · рейтинг ${p.rating}` : 'Ещё не играл'}</small></h1></section>`;
 
     if (p) {
       const tiles = [['Матчи', p.games], ['Очки', p.pts], ['Очки/матч', fix1(p.ppg)], ['Победы', Math.round(p.winPct) + '%'], ['Голы', p.goals], ['Пасы', p.assists],
         ['Сухие', p.cs], ['Туры', p.tours], ['Мячи', `${p.gf}:${p.ga}`]];
-      html += `<section class="section"><div class="stat-grid">${tiles.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v num">${v}</div></div>`).join('')}</div></section>
-        <div class="gap"></div><section class="section"><h2 class="h2">Профиль игрока</h2>${radarSvg(p.radar)}
-        <p class="hint" style="text-align:center">Цифры — процент игроков, у которых этот показатель хуже.${p.smallSample ? ' Пока мало матчей, профиль может сильно меняться.' : ''}</p></section>`;
+      html += `<section class="panel"><div class="stat-grid">${tiles.map(([k, v]) => `<div class="stat"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('')}</div></section>
+        <section class="panel">${panelHead('Профиль')}<div class="panel-body">${radarSvg(p.radar, h)}</div>
+        <p class="caption">Число у оси — сколько процентов игроков хуже по этому показателю.${p.smallSample ? ' Пока мало матчей, профиль будет меняться.' : ''}</p></section>`;
 
       const hist = p.history.slice(-10).reverse();
-      html += `<div class="gap"></div><section class="section"><h2 class="h2">Форма</h2>
-        <div class="form">${hist.map((h) => `<a class="${h.place === 1 ? 'p1' : h.place === h.teams ? 'plast' : ''}" href="#/tour/${enc(h.tourId)}" title="${fmtDate(h.date)}: ${h.place}-е место, ${h.goals} г, ${h.assists} п">${h.place}</a>`).join('')}</div>
-        <p class="hint">Место команды игрока в последних турах, слева самый свежий.</p>
-        ${sparkSvg(p.rankAfter || [], st.list.length) ? `<h3 style="margin:16px 0 6px;font-size:15px">Место в общей таблице</h3>${sparkSvg(p.rankAfter || [], st.list.length)}` : ''}
+      const spark = sparkSvg(p.rankAfter || [], st.list.length);
+      html += `<section class="panel">${panelHead('Форма', '<span class="muted" style="font-size:13px;font-weight:500">место команды, свежие слева</span>')}
+        <div class="form-row">${hist.map((x) => `<a class="${x.place === 1 ? 'p1' : x.place === x.teams ? 'plast' : ''}" href="#/tour/${enc(x.tourId)}" title="${fmtDate(x.date)}: ${x.place}-е место, голы ${x.goals}, пасы ${x.assists}">${x.place}</a>`).join('')}</div>
+        ${spark ? `<div class="sep" style="margin-top:12px"></div>${panelHead('Место в общей таблице', `<span class="muted" style="font-size:13px;font-weight:500">сейчас ${p.pos}-е</span>`)}<div class="panel-body">${spark}</div>` : '<div style="height:10px"></div>'}
       </section>`;
 
       const partners = st.pairs.filter((x) => (x.a === name || x.b === name) && x.games >= 3)
         .map((x) => ({ ...x, other: x.a === name ? x.b : x.a })).sort((a, b) => b.ppg - a.ppg || b.games - a.games).slice(0, 3);
+      if (partners.length) {
+        html += `<section class="panel">${panelHead('Лучшие партнёры')}<ul class="list">${partners.map((x) => `<li><a class="item" href="${playerHref(x.other)}">${avatar(x.other)}
+          <span class="main"><span class="nm">${esc(x.other)}</span><span class="sub">${nWord(x.games, 'матч', 'матча', 'матчей')} вместе · ${x.w}-${x.d}-${x.l}</span></span>
+          <span class="val"><b>${fix1(x.ppg)}</b><span>очк/матч</span></span></a></li>`).join('')}</ul></section>`;
+      }
       const feeds = st.links.filter((l) => l.to === name).slice(0, 3);
       const gives = st.links.filter((l) => l.from === name).slice(0, 3);
-      if (partners.length || feeds.length || gives.length) {
-        html += '<div class="gap"></div><section class="section">';
-        if (partners.length) {
-          html += `<h2 class="h2">Лучшие партнёры</h2><ul class="rows">${partners.map((x) => `<li><a class="row" href="${playerHref(x.other)}">${avatar(x.other)}<span class="main"><span class="name">${esc(x.other)}</span><span class="meta">${nWord(x.games, 'матч', 'матча', 'матчей')} вместе · ${x.w}-${x.d}-${x.l}</span></span><span class="end"><span class="big num">${fix1(x.ppg)}</span><span class="meta">очк/матч</span></span></a></li>`).join('')}</ul>`;
-        }
-        const linkRows = (arr, key) => arr.map((l) => `<li><a class="row" href="${playerHref(l[key])}">${avatar(l[key], 's')}<span class="main"><span class="name">${esc(l[key])}</span></span><span class="end num"><b>${l.count}</b></span></a></li>`).join('');
-        if (feeds.length) html += `<h2 class="h2" style="margin-top:14px">Чаще всего пасуют ему</h2><ul class="rows">${linkRows(feeds, 'from')}</ul>`;
-        if (gives.length) html += `<h2 class="h2" style="margin-top:14px">Он чаще всего пасует</h2><ul class="rows">${linkRows(gives, 'to')}</ul>`;
-        html += '</section>';
+      const linkList = (arr, key, label) => `<li><div class="item" style="padding-bottom:4px"><span class="sub">${label}</span></div></li>${arr.map((l) => `<li><a class="item" href="${playerHref(l[key])}">${avatar(l[key], 's')}<span class="main"><span class="nm">${esc(l[key])}</span></span><span class="val"><b style="font-size:16px">${l.count}</b></span></a></li>`).join('')}`;
+      if (feeds.length || gives.length) {
+        html += `<section class="panel">${panelHead('Голевые передачи')}<ul class="list">${feeds.length ? linkList(feeds, 'from', 'Чаще всего пасуют ему') : ''}${gives.length ? linkList(gives, 'to', 'Он чаще всего пасует') : ''}</ul></section>`;
       }
     } else {
-      html += `<section class="section">${empty('🕐', 'Матчей пока нет', 'Статистика появится после первого тура с этим игроком.')}</section>`;
+      html += `<section class="panel">${empty('', 'Матчей пока нет', 'Статистика появится после первого тура с этим игроком.')}</section>`;
     }
 
     if (ed && known) {
-      html += `<div class="gap"></div><section class="section"><h2 class="h2">Для организатора</h2>
-        <form data-form="rename" data-name="${esc(name)}"><div class="field"><label for="rn">Имя</label>
+      html += `<section class="panel">${panelHead('Для организатора')}
+        <form class="form-body" data-form="rename" data-name="${esc(name)}"><div class="field"><label for="rn">Имя</label>
           <div class="input"><input id="rn" name="to" value="${esc(name)}" maxlength="40" autocomplete="off"></div></div>
-          <div class="actions" style="margin-top:12px"><button class="btn btn-black" type="submit">Переименовать</button>
-          <button class="btn btn-gray" type="button" data-act="toggle-gk" data-name="${esc(name)}">${isGk(name) ? 'Не вратарь' : '🧤 Вратарь'}</button></div></form>
-        ${p ? '' : `<button class="btn btn-danger block" style="margin-top:12px" data-act="delete-player" data-name="${esc(name)}">${icon('trash')}Удалить игрока</button>`}
-      </section>`;
+          <div class="btn-row"><button class="btn btn-white" type="submit">Переименовать</button>
+          <button class="btn btn-glass" type="button" data-act="toggle-gk" data-name="${esc(name)}">${isGk(name) ? 'Не вратарь' : 'Вратарь'}</button></div>
+          ${p ? '' : `<button class="btn btn-danger block" type="button" data-act="delete-player" data-name="${esc(name)}">${icon('trash')}Удалить игрока</button>`}
+        </form></section>`;
     }
-    return html + '</main>';
+    return html;
   }
 
   /* ---------- Статистика ---------- */
   function vStats() {
     const st = stats();
-    let html = topMain() + `<main><section class="section" style="padding-bottom:8px"><h2 class="h2">Статистика</h2>${periodPills()}</section>`;
-    if (!st.list.length) return html + `<section class="section">${empty('📊', 'Пока нечего считать', 'Статистика появится после первых матчей.')}</section></main>`;
+    let html = head('Статистика', S.period === 'all' ? 'за всё время' : 'за ' + esc(fmtMonth(S.period).toLowerCase()), mainRight());
+    if (!st.list.length) return html + `<section class="panel">${empty('chart', 'Пока нечего считать', 'Статистика появится после первых матчей.')}</section>`;
+    html += `<section class="panel">${periodSegments()}<div style="height:6px"></div></section>`;
 
-    const block = (key, title, items, row, more) => {
+    const block = (key, title, items, row, note) => {
       if (!items.length) return '';
       const open = S.expanded[key];
       const shown = open ? items : items.slice(0, 5);
-      return `<div class="gap"></div><section class="section"><h2 class="h2">${title}</h2><ul class="rows">${shown.map(row).join('')}</ul>
-        ${items.length > 5 ? `<button class="see-all" data-act="expand" data-key="${key}"><span>${open ? 'Свернуть' : `Показать всех (${items.length})`}</span>${icon('chev')}</button>` : ''}${more || ''}</section>`;
+      return `<section class="panel">${panelHead(title)}<ul class="list">${shown.map(row).join('')}</ul>
+        ${items.length > 5 ? `<button class="more" data-act="expand" data-key="${key}">${open ? 'Свернуть' : `Показать всех · ${items.length}`}${icon('chev')}</button>` : ''}
+        ${note ? `<p class="caption" style="padding-top:${items.length > 5 ? 0 : 6}px">${note}</p>` : ''}</section>`;
     };
-    const prow = (val, label, meta) => (p, i) => `<li><a class="row" href="${playerHref(p.name)}"><span class="pos num">${i + 1}</span>${avatar(p.name)}
-      <span class="main"><span class="name">${esc(p.name)}</span><span class="meta">${meta(p)}</span></span>
-      <span class="end"><span class="big num">${val(p)}</span><span class="meta">${label(p)}</span></span></a></li>`;
+    const prow = (val, label, sub) => (p, i) => `<li><a class="item" href="${playerHref(p.name)}"><span class="rank">${i + 1}</span>${avatar(p.name)}
+      <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${sub(p)}</span></span>
+      <span class="val"><b>${val(p)}</b><span>${label(p)}</span></span></a></li>`;
     const sortBy = (f, filter) => [...st.list].filter(filter || ((p) => f(p) > 0)).sort((a, b) => f(b) - f(a) || a.games - b.games);
 
-    html += block('goals', '⚽ Бомбардиры', sortBy((p) => p.goals), prow((p) => p.goals, (p) => plural(p.goals, 'гол', 'гола', 'голов'), (p) => `${fix1(p.goalsPg)} за матч · ${nWord(p.games, 'матч', 'матча', 'матчей')}`));
-    html += block('assists', '👟 Ассистенты', sortBy((p) => p.assists), prow((p) => p.assists, (p) => plural(p.assists, 'пас', 'паса', 'пасов'), (p) => `${fix1(p.assistsPg)} за матч`));
-    html += block('ga', '🔥 Гол + пас', sortBy((p) => p.goals + p.assists), prow((p) => p.goals + p.assists, () => 'г+п', (p) => `⚽ ${p.goals} · 👟 ${p.assists}`));
-    html += block('cs', '🧱 Сухие матчи', sortBy((p) => p.cs), prow((p) => p.cs, () => 'сухих', (p) => `${Math.round(p.csPct)}% матчей на ноль`));
-    html += block('ppg', '📈 Очки за матч', sortBy((p) => p.ppg, (p) => !p.smallSample), prow((p) => fix1(p.ppg), () => 'очк/матч', (p) => `${p.w}-${p.d}-${p.l}`),
-      `<p class="hint">Только игроки, у которых хотя бы ${nWord(st.minGames, 'матч', 'матча', 'матчей')}.</p>`);
+    html += block('goals', 'Бомбардиры', sortBy((p) => p.goals), prow((p) => p.goals, (p) => plural(p.goals, 'гол', 'гола', 'голов'), (p) => `${fix1(p.goalsPg)} за матч · ${nWord(p.games, 'матч', 'матча', 'матчей')}`));
+    html += block('assists', 'Ассистенты', sortBy((p) => p.assists), prow((p) => p.assists, (p) => plural(p.assists, 'пас', 'паса', 'пасов'), (p) => `${fix1(p.assistsPg)} за матч`));
+    html += block('ga', 'Гол + пас', sortBy((p) => p.goals + p.assists), prow((p) => p.goals + p.assists, () => 'г+п', (p) => `голы ${p.goals} · пасы ${p.assists}`));
+    html += block('cs', 'Сухие матчи', sortBy((p) => p.cs), prow((p) => p.cs, () => 'сухих', (p) => `${Math.round(p.csPct)}% матчей на ноль`));
+    html += block('ppg', 'Очки за матч', sortBy((p) => p.ppg, (p) => !p.smallSample), prow((p) => fix1(p.ppg), () => 'очк/матч', (p) => `${p.w}-${p.d}-${p.l}`),
+      `Только игроки, у которых хотя бы ${nWord(st.minGames, 'матч', 'матча', 'матчей')}.`);
 
     const minPair = Math.max(3, Math.round(st.minGames / 2));
     const pairs = st.pairs.filter((x) => x.games >= minPair).sort((a, b) => b.ppg - a.ppg || b.games - a.games);
-    html += block('pairs', '🤝 Лучшие связки', pairs, (x, i) => `<li class="row"><span class="pos num">${i + 1}</span>
-      <span class="main"><span class="name">${esc(x.a)} + ${esc(x.b)}</span><span class="meta">${nWord(x.games, 'матч', 'матча', 'матчей')} вместе · ${x.w}-${x.d}-${x.l}</span></span>
-      <span class="end"><span class="big num">${fix1(x.ppg)}</span><span class="meta">очк/матч</span></span></li>`, `<p class="hint">Пары, сыгравшие вместе от ${nWord(minPair, 'матча', 'матчей', 'матчей')}.</p>`);
-    html += block('links', '🎯 Голевые связки', st.links, (l, i) => `<li class="row"><span class="pos num">${i + 1}</span>
-      <span class="main"><span class="name">${esc(l.from)} → ${esc(l.to)}</span><span class="meta">пас и гол</span></span>
-      <span class="end"><span class="big num">${l.count}</span><span class="meta">${plural(l.count, 'раз', 'раза', 'раз')}</span></span></li>`);
-    return html + '</main>';
+    html += block('pairs', 'Лучшие связки', pairs, (x, i) => `<li><div class="item"><span class="rank">${i + 1}</span>
+      <span style="display:flex">${avatar(x.a, 's')}<span style="margin-left:-6px">${avatar(x.b, 's')}</span></span>
+      <span class="main"><span class="nm">${esc(x.a)} и ${esc(x.b)}</span><span class="sub">${nWord(x.games, 'матч', 'матча', 'матчей')} вместе · ${x.w}-${x.d}-${x.l}</span></span>
+      <span class="val"><b>${fix1(x.ppg)}</b><span>очк/матч</span></span></div></li>`, `Пары, сыгравшие вместе от ${nWord(minPair, 'матча', 'матчей', 'матчей')}.`);
+    html += block('links', 'Пас — гол', st.links, (l, i) => `<li><div class="item"><span class="rank">${i + 1}</span>
+      <span class="main"><span class="nm">${esc(l.from)} <span class="dim">→</span> ${esc(l.to)}</span></span>
+      <span class="val"><b>${l.count}</b><span>${plural(l.count, 'раз', 'раза', 'раз')}</span></span></div></li>`);
+    return html;
   }
 
   /* ---------- Новый тур / составы ---------- */
@@ -638,55 +666,57 @@
     const st = allStats();
     const names = [...new Set([...S.data.players.map((p) => p.name), ...D.selected])]
       .sort((a, b) => ((st.byName[b] || {}).games || 0) - ((st.byName[a] || {}).games || 0) || a.localeCompare(b, 'ru'));
-    let html = topBack(tourId ? 'Составы' : 'Новый тур', tourId ? '#/tour/' + enc(tourId) : '#/tours') + '<main><section class="section">';
+    let html = backRow(tourId ? '#/tour/' + enc(tourId) : '#/tours') + head(tourId ? 'Составы' : 'Новый тур', tourId ? fmtDate(D.date) : 'Отметьте, кто пришёл, и сайт поделит игроков на равные команды');
 
-    html += `<div class="field"><label for="tdate">Дата</label><div class="input">${icon('cal')}<input type="date" id="tdate" data-input="draft-date" value="${esc(D.date)}"></div></div>
-      <div class="field"><span class="label">Сколько команд</span><div class="pills">${[2, 3, 4].map((k) => `<button class="pill yellow" data-act="draft-k" data-v="${k}" aria-pressed="${D.k === k}">${k} команды</button>`).join('')}</div></div>
+    html += `<section class="panel"><div class="form-body" style="padding-top:14px">
+      <div class="field"><label for="tdate">Дата</label><div class="input">${icon('cal')}<input type="date" id="tdate" data-input="draft-date" value="${esc(D.date)}"></div></div>
+      <div class="field"><span class="label">Команд</span><div class="segments" style="padding:0;background:var(--fill);border-radius:99px;padding:3px">${[2, 3, 4].map((k) => `<button class="seg" data-act="draft-k" data-v="${k}" aria-pressed="${D.k === k}">${k}</button>`).join('')}</div></div>
       <div class="field"><span class="label">Кто играет · ${D.selected.length}</span>
-        <div class="chips">${names.map((n) => `<button class="chip ${D.selected.includes(n) ? 'on' : ''}" style="${D.selected.includes(n) ? '' : 'background:var(--fill)'}" data-act="draft-toggle" data-name="${esc(n)}">${isGk(n) ? '🧤 ' : ''}${esc(n)}</button>`).join('')}</div>
-        <form data-form="add-player" style="display:flex;gap:8px;margin-top:10px"><div class="input" style="flex:1"><input name="name" placeholder="Новый игрок" maxlength="40" autocomplete="off" aria-label="Имя нового игрока"></div><button class="btn btn-gray" type="submit" aria-label="Добавить">${icon('plus')}</button></form>
+        <div class="chips">${names.map((n) => `<button class="chip ${D.selected.includes(n) ? 'on' : ''}" data-act="draft-toggle" data-name="${esc(n)}">${esc(n)}${isGk(n) ? ' <span class="muted">ВР</span>' : ''}</button>`).join('')}</div>
+        <form data-form="add-player" style="display:flex;gap:8px;margin-top:10px"><div class="input" style="flex:1"><input name="name" placeholder="Новый игрок" maxlength="40" autocomplete="off" aria-label="Имя нового игрока"></div><button class="btn btn-glass" type="submit" aria-label="Добавить">${icon('plus')}</button></form>
       </div>
-      <button class="btn btn-black block" style="margin-top:18px" data-act="draft-balance" ${D.selected.length < D.k * 2 ? 'disabled' : ''}>${icon('shuffle')}${D.teams ? 'Подобрать заново' : 'Подобрать составы'}</button>
-      ${D.selected.length < D.k * 2 ? `<p class="hint">Нужно хотя бы ${D.k * 2} игроков.</p>` : ''}
-    </section>`;
+      <button class="btn btn-white block" data-act="draft-balance" ${D.selected.length < D.k * 2 ? 'disabled' : ''}>${icon('shuffle')}${D.teams ? 'Подобрать заново' : 'Подобрать составы'}</button>
+      ${D.selected.length < D.k * 2 ? `<p class="hint" style="margin-top:-8px;text-align:center">Нужно хотя бы ${D.k * 2} игроков.</p>` : ''}
+    </div></section>`;
 
     if (D.teams) {
-      html += `<div class="gap"></div><section class="section"><h2 class="h2">Составы<span class="muted" style="font-size:13px;font-weight:500">нажмите на игрока, чтобы перевести</span></h2><div class="rosters">
+      html += `<section class="panel">${panelHead('Составы', '<span class="muted" style="font-size:13px;font-weight:500">нажмите на игрока, чтобы перевести</span>')}
         ${Object.entries(D.teams).map(([k, list]) => {
           const avg = list.length ? Math.round(list.reduce((s, n) => s + ratingFor(n), 0) / list.length) : 0;
-          return `<div class="roster"><h3>${dot(k)}${esc(tn(k))}<span class="muted">${nWord(list.length, 'игрок', 'игрока', 'игроков')} · ср. рейтинг ${avg}</span></h3>
-            <div class="chips">${list.map((n) => `<button class="chip" data-act="draft-move" data-name="${esc(n)}">${isGk(n) ? '🧤 ' : ''}${esc(n)} <span class="muted">${Math.round(ratingFor(n))}</span></button>`).join('') || '<span class="muted">пусто</span>'}</div></div>`;
-        }).join('')}</div>
-        <button class="btn btn-yellow block" style="margin-top:16px" data-act="draft-save">${icon('check')}${tourId ? 'Сохранить составы' : 'Создать тур'}</button></section>`;
+          return `<div class="roster"><h3>${kit(k)}${esc(tn(k))}<span class="muted">${nWord(list.length, 'игрок', 'игрока', 'игроков')} · рейтинг ${avg}</span></h3>
+            <div class="chips">${list.map((n) => `<button class="chip" data-act="draft-move" data-name="${esc(n)}">${esc(n)}${isGk(n) ? ' <span class="muted">ВР</span>' : ''} <span class="muted">${Math.round(ratingFor(n))}</span></button>`).join('') || '<span class="muted">пусто</span>'}</div></div>`;
+        }).join('')}
+        <div class="panel-body" style="padding-top:8px"><button class="btn btn-white block" data-act="draft-save">${icon('check')}${tourId ? 'Сохранить составы' : 'Создать тур'}</button></div></section>`;
     }
-    return html + '</main>';
+    return html;
   }
 
   /* ---------- Настройки ---------- */
   function vSettings() {
-    let html = topBack('Настройки', '#/') + '<main>';
+    let html = backRow('#/');
     if (!isEditor()) {
-      html += `<section class="section"><div class="empty"><div class="e">🔒</div><b>Вход для организатора</b><p>Организатор создаёт туры, ведёт матчи и правит статистику. Остальным вход не нужен.</p></div>
-        ${S.editable ? `<form data-form="login" style="margin-top:16px"><div class="field"><label for="pw">Пароль</label><div class="input">${icon('lock')}<input id="pw" name="password" type="password" autocomplete="current-password" required></div></div>
-          <button class="btn btn-black block" style="margin-top:14px" type="submit">Войти</button></form>`
-        : '<p class="hint" style="text-align:center;margin-top:14px">Редактирование выключено: на сервере не задан пароль (переменная ADMIN_PASSWORD).</p>'}
-      </section></main>`;
+      html += head('Вход', 'Для организатора: туры, матчи и правка статистики. Остальным вход не нужен.');
+      html += `<section class="panel">${S.editable
+        ? `<form class="form-body" data-form="login" style="padding-top:16px"><div class="field"><label for="pw">Пароль</label><div class="input">${icon('lock')}<input id="pw" name="password" type="password" autocomplete="current-password" required></div></div>
+          <button class="btn btn-white block" type="submit">Войти</button></form>`
+        : '<p class="caption" style="padding:16px">Редактирование выключено: на сервере не задан пароль (переменная ADMIN_PASSWORD).</p>'}</section>`;
       return html;
     }
     const D = S.data;
-    html += `<section class="section"><h2 class="h2">Лига</h2><form data-form="league">
+    html += head('Настройки');
+    html += `<section class="panel">${panelHead('Лига')}<form class="form-body" data-form="league">
       <div class="field"><label for="ln">Название</label><div class="input"><input id="ln" name="name" value="${esc(D.name)}" maxlength="40" required></div></div>
       <div class="field"><label for="ls">Сезон</label><div class="input"><input id="ls" name="season" value="${esc(D.season || '')}" maxlength="40" placeholder="Например, Осень 2026"></div></div>
-      <div class="field"><span class="label">Названия команд</span>${LG.TEAM_KEYS.map((k) => `<div class="input" style="margin-top:8px">${dot(k)}<input name="team-${k}" value="${esc(tn(k))}" maxlength="24" aria-label="Команда ${k}"></div>`).join('')}</div>
-      <button class="btn btn-black block" style="margin-top:16px" type="submit">Сохранить</button></form></section>
-      <div class="gap"></div><section class="section"><h2 class="h2">Вратари</h2><p class="hint" style="margin:-6px 0 10px">Вратарей сайт раскидывает по разным командам при подборе составов.</p>
-      <div class="chips">${D.players.map((p) => `<button class="chip ${p.gk ? 'on' : ''}" style="${p.gk ? '' : 'background:var(--fill)'}" data-act="toggle-gk" data-name="${esc(p.name)}">${p.gk ? '🧤 ' : ''}${esc(p.name)}</button>`).join('') || '<span class="muted">Игроков пока нет</span>'}</div></section>
-      <div class="gap"></div><section class="section"><h2 class="h2">Данные</h2><div class="actions">
-        <button class="btn btn-gray" data-act="export">${icon('download')}Скачать копию</button>
-        <label class="btn btn-gray">${icon('upload')}Загрузить<input type="file" accept="application/json,.json" data-input="import" hidden></label></div>
-        ${D.tours.length ? '' : `<button class="btn btn-yellow block" style="margin-top:10px" data-act="demo">Заполнить демо-данными</button><p class="hint">Добавит 16 игроков и 8 туров, чтобы посмотреть, как выглядит сайт. Потом всё можно удалить, загрузив пустую копию.</p>`}
-      </section>
-      <div class="gap"></div><section class="section"><button class="btn btn-gray block" data-act="logout">Выйти</button></section></main>`;
+      <div class="field"><span class="label">Команды</span>${LG.TEAM_KEYS.map((k) => `<div class="input">${kit(k)}<input name="team-${k}" value="${esc(tn(k))}" maxlength="24" aria-label="Команда ${k}"></div>`).join('')}</div>
+      <button class="btn btn-white block" type="submit">Сохранить</button></form></section>
+      <section class="panel">${panelHead('Вратари')}<p class="caption" style="text-align:left;padding:0 16px 10px">При подборе составов вратари попадают в разные команды.</p>
+      <div class="panel-body"><div class="chips">${D.players.map((p) => `<button class="chip ${p.gk ? 'on' : ''}" data-act="toggle-gk" data-name="${esc(p.name)}">${esc(p.name)}</button>`).join('') || '<span class="muted">Игроков пока нет</span>'}</div></div></section>
+      <section class="panel">${panelHead('Данные')}<div class="panel-body"><div class="btn-row">
+        <button class="btn btn-glass" data-act="export">${icon('download')}Скачать копию</button>
+        <label class="btn btn-glass">${icon('upload')}Загрузить<input type="file" accept="application/json,.json" data-input="import" hidden></label></div>
+        ${D.tours.length ? '' : `<button class="btn btn-white block" style="margin-top:8px" data-act="demo">Заполнить демо-данными</button><p class="hint" style="margin-top:8px">Добавит 16 игроков и 8 туров, чтобы посмотреть, как выглядит сайт.</p>`}
+      </div></section>
+      <button class="btn btn-glass block" style="margin-top:12px" data-act="logout">Выйти</button>`;
     return html;
   }
 
@@ -709,6 +739,7 @@
     if (!S.data) return;
     const path = location.hash.replace(/^#/, '') || '/';
     let html = null, tab = null;
+    setTint();
     for (const [re, fn, t] of routes) {
       const m = path.match(re);
       if (m) { html = fn(...m.slice(1).map(decodeURIComponent)); tab = t; break; }
@@ -716,6 +747,10 @@
     if (html === null) { html = vTable(); tab = 'table'; }
     const y = window.scrollY;
     view.innerHTML = html;
+    const app = $('#app');
+    app.style.setProperty('--tint', tint[0]);
+    app.style.setProperty('--tint-2', tint[1]);
+    if (path !== lastPath) { view.classList.remove('view-enter'); void view.offsetWidth; view.classList.add('view-enter'); }
     if (path === lastPath) window.scrollTo(0, y); else window.scrollTo(0, 0);
     lastPath = path;
     document.querySelectorAll('.tabbar a').forEach((a) => { if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
