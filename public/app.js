@@ -23,8 +23,12 @@
     expanded: {},
     draft: null,      // черновик нового тура / составов
     goal: null,       // черновик гола в шторке
+    me: store.get('fl-me'),            // «Это я» — игрок, выбранный в этом браузере
+    meSkip: !!store.get('fl-me-skip'),
+    endSignaled: null, // матч, по которому уже подали сигнал «время вышло»
   };
   const isEditor = () => !!S.pwd;
+  const isMe = (name) => !!S.me && name === S.me;
 
   /* ---------- Форматирование ---------- */
   const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -179,7 +183,7 @@
     <path d="M10.6 4.2 4 7.8l2.6 6.1 3-1.3V28h12.8V12.6l3 1.3L28 7.8l-6.6-3.6c-1 1.9-3 3.1-5.4 3.1s-4.4-1.2-5.4-3.1z" fill="var(--${k})"/>
     <path d="M10.6 4.2 4 7.8l2.6 6.1 3-1.3V28h12.8V12.6l3 1.3L28 7.8l-6.6-3.6c-1 1.9-3 3.1-5.4 3.1s-4.4-1.2-5.4-3.1z" fill="url(#kit-shade)"/>
     <path d="M10.6 4.2c1 1.9 3 3.1 5.4 3.1s4.4-1.2 5.4-3.1" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1.2"/></svg>`;
-  const gkTag = (name) => (isGk(name) ? '<span class="gk" title="Вратарь">ВР</span>' : '');
+  const gkTag = (name) => (isGk(name) ? '<span class="gk" title="Вратарь">ВР</span>' : '') + (isMe(name) ? '<span class="you">вы</span>' : '');
   const head = (title, sub, right) => `<header class="head"><h1 class="title">${title}${sub ? `<small>${sub}</small>` : ''}</h1>${right || ''}</header>`;
   const mainRight = () => (isEditor()
     ? `<a class="glass-btn round" href="#/settings" aria-label="Настройки">${icon('gear')}</a>`
@@ -229,7 +233,7 @@
     if (!L || L.matchId) return '';
     const s = liveScore(L);
     return `<a class="panel live-strip" href="#/live"><span><span class="live-dot"></span>Идёт матч</span>
-      ${kit(L.a)} <span class="dim">—</span> ${kit(L.b)}<span class="sc">${s.a}:${s.b}</span></a>`;
+      ${kit(L.a)} <span class="dim">—</span> ${kit(L.b)}<span class="sc" data-live-score>${s.a}:${s.b}</span></a>`;
   }
 
   /* ---------- Таблица ---------- */
@@ -239,6 +243,43 @@
       return `<div class="places-grid">${info.standings.map((s, i) => `<div class="pl ${i === 0 && s.games ? 'first' : ''}">${kit(s.key, 'l')}<span class="nm">${esc(tn(s.key))}</span><b>${s.pts}</b></div>`).join('')}</div>`;
     }
     return `<div class="places-row">${info.standings.map((s, i) => `<span class="pl ${i === 0 && s.games ? 'first' : ''}" title="${esc(tn(s.key))}">${kit(s.key)}<b>${s.pts}</b></span>`).join('')}</div>`;
+  }
+
+  // Личная карточка игрока, который отметил себя в этом браузере
+  function meCard(all) {
+    const me = S.me && S.data.players.some((x) => x.name === S.me) ? S.me : null;
+    if (!me) {
+      if (S.meSkip || !all.list.length) return '';
+      return `<section class="panel me-prompt"><div class="panel-body" style="padding-top:16px">
+        <b>Вы играете в лиге?</b><p class="hint">Отметьте себя — ваша строка будет подсвечена, а здесь появится личная сводка.</p>
+        <div class="btn-row" style="margin-top:12px"><button class="btn btn-white sm" data-act="pick-me">Найти себя</button><button class="btn btn-glass sm" data-act="skip-me">Я не играю</button></div></div></section>`;
+    }
+    const p = all.byName[me];
+    if (!p) {
+      return `<a class="panel me-card" href="${playerHref(me)}"><div class="me-top">${avatar(me)}<div class="who"><span class="k">Вы</span><b>${esc(me)}</b></div></div>
+        <p class="caption" style="text-align:left;padding:0 16px 14px">Статистика появится после первого матча.</p></a>`;
+    }
+    const lastTour = all.tours[all.tours.length - 1];
+    const h = p.history[p.history.length - 1];
+    const playedLast = h && lastTour && h.tourId === lastTour.id;
+    let move = '';
+    if (p.prevPos != null && p.prevPos !== p.pos) move = p.prevPos > p.pos ? `<span class="mv up">▲${p.prevPos - p.pos}</span>` : `<span class="mv down">▼${p.pos - p.prevPos}</span>`;
+    const lastLine = playedLast
+      ? [`${h.place}-е место`, h.goals ? nWord(h.goals, 'гол', 'гола', 'голов') : '', h.assists ? nWord(h.assists, 'пас', 'паса', 'пасов') : ''].filter(Boolean).join(' · ')
+      : 'пропустили';
+    return `<a class="panel me-card" href="${playerHref(me)}" style="--h:${hueFor(me)}">
+      <div class="me-top">${avatar(me)}<div class="who"><span class="k">Вы</span><b>${esc(me)}</b></div>
+        <div class="place"><b>${p.pos}</b><span>место ${move}</span></div></div>
+      <div class="me-stats"><div><b>${p.pts}</b><span>очки</span></div><div><b>${p.goals}</b><span>голы</span></div><div><b>${p.assists}</b><span>пасы</span></div><div><b>${p.rating}</b><span>рейтинг</span></div></div>
+      <div class="me-last">Последний тур: <span>${lastLine}</span></div></a>`;
+  }
+
+  function meModal() {
+    const q = (S.meQuery || '').toLowerCase();
+    const names = S.data.players.map((x) => x.name).filter((n) => !q || n.toLowerCase().includes(q)).sort((a, b) => a.localeCompare(b, 'ru'));
+    return `<div class="modal-head"><button class="link-btn" data-act="close-modal">Отмена</button><h2>Кто вы?</h2><span></span></div>
+      <label class="input" style="margin-bottom:8px">${icon('search')}<input type="search" data-input="me-search" value="${esc(S.meQuery || '')}" placeholder="Ваше имя" aria-label="Ваше имя"></label>
+      <ul class="list" style="padding:0">${names.map((n) => `<li><button class="item" style="width:100%;border:0;background:none;text-align:left" data-act="set-me" data-name="${esc(n)}">${avatar(n)}<span class="main"><span class="nm">${esc(n)}</span></span></button></li>`).join('') || '<li class="hint" style="padding:16px 0">Никого не нашлось</li>'}</ul>`;
   }
 
   function vTable() {
@@ -254,6 +295,7 @@
     }
 
     html += liveStrip();
+    html += meCard(all);
 
     // Последний тур
     const last = all.tours[all.tours.length - 1];
@@ -272,7 +314,7 @@
       ${st.list.map((p) => {
         let mv = '';
         if (p.prevPos != null && p.prevPos !== p.pos) mv = p.prevPos > p.pos ? `<span class="mv up">▲${p.prevPos - p.pos}</span>` : `<span class="mv down">▼${p.pos - p.prevPos}</span>`;
-        return `<tr><td>${p.pos}${mv}</td>
+        return `<tr class="${isMe(p.name) ? 'me' : ''}"><td>${p.pos}${mv}</td>
           <td class="name"><a href="${playerHref(p.name)}">${avatar(p.name, 's')}<span class="t">${esc(p.name)}</span>${gkTag(p.name)}</a></td>
           <td>${p.games}</td><td>${p.w}</td><td>${p.d}</td><td>${p.l}</td><td>${p.gd > 0 ? '+' : ''}${p.gd}</td><td class="pts">${p.pts}</td></tr>`;
       }).join('')}
@@ -336,7 +378,7 @@
 
     if (info.players.length && t.matches.length) {
       html += `<section class="panel">${panelHead('Лучшие в туре')}<ul class="list">
-        ${info.players.slice(0, 5).map((p, i) => `<li><a class="item" href="${playerHref(p.name)}">
+        ${info.players.slice(0, 5).map((p, i) => `<li><a class="item ${isMe(p.name) ? 'me' : ''}" href="${playerHref(p.name)}">
           <span class="rank">${i === 0 ? '<svg class="star"><use href="#i-star"/></svg>' : i + 1}</span>${avatar(p.name)}
           <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${kit(p.key)} ${[p.goals ? nWord(p.goals, 'гол', 'гола', 'голов') : '', p.assists ? nWord(p.assists, 'пас', 'паса', 'пасов') : '', nWord(p.w, 'победа', 'победы', 'побед')].filter(Boolean).join(' · ')}</span></span>
           <span class="val"><b>${p.score}</b><span>${plural(p.score, 'балл', 'балла', 'баллов')}</span></span></a></li>`).join('')}
@@ -346,7 +388,7 @@
     html += `<section class="panel">${panelHead('Составы')}${Object.entries(t.teams).map(([k, names]) => {
       const place = info.standings.findIndex((s) => s.key === k) + 1;
       return `<div class="roster"><h3>${kit(k)}${esc(tn(k))}<span class="muted">${place ? place + '-е' : ''}</span></h3>
-        <div class="chips">${names.map((n) => `<a class="chip" href="${playerHref(n)}">${esc(n)}${gkTag(n)}</a>`).join('')}</div></div>`;
+        <div class="chips">${names.map((n) => `<a class="chip ${isMe(n) ? 'mine' : ''}" href="${playerHref(n)}">${esc(n)}${gkTag(n)}</a>`).join('')}</div></div>`;
     }).join('')}</section>`;
 
     if (ed) html += `<button class="btn btn-danger block" style="margin-top:12px" data-act="delete-tour" data-tour="${esc(t.id)}">${icon('trash')}Удалить тур</button>`;
@@ -378,10 +420,11 @@
         <div class="meta">${editing ? 'Изменение матча' : (L.run ? '<span class="live-dot"></span>LIVE' : 'Пауза')} · Матч ${L.n || t.matches.length + 1} · ${fmtDate(t.date)}</div>
         <div class="row">
           <div class="side">${kit(L.a, 'xl')}${esc(tn(L.a))}</div>
-          <div class="score"><span class="${s.a < s.b ? 'dim' : ''}">${s.a}</span><i>:</i><span class="${s.b < s.a ? 'dim' : ''}">${s.b}</span></div>
+          <div class="score"><span data-side="${L.a}" class="${s.a < s.b ? 'dim' : ''}">${s.a}</span><i>:</i><span data-side="${L.b}" class="${s.b < s.a ? 'dim' : ''}">${s.b}</span></div>
           <div class="side">${kit(L.b, 'xl')}${esc(tn(L.b))}</div>
         </div>
         ${editing ? '' : `<div class="clock ${over ? 'over' : ''}" data-clock>${clockText(L)}</div>`}
+        ${S.me && !editing && [L.a, L.b].find((k) => (t.teams[k] || []).includes(S.me)) ? `<p class="hint" style="margin-top:12px">Вы играете за «${esc(tn([L.a, L.b].find((k) => t.teams[k].includes(S.me))))}»</p>` : ''}
       </section>`;
 
       if (L.events.length) {
@@ -495,7 +538,7 @@
       <div class="segments bar">${Object.entries(sorts).map(([k, [label]]) => `<button class="seg" data-act="psort" data-v="${k}" aria-pressed="${S.playerSort === k}">${label}</button>`).join('')}</div>
       <section class="panel"><ul class="list" id="player-list">`;
     if (!list.length && !idle.length) html += `<li>${empty('search', q ? 'Никого не нашлось' : 'Игроков пока нет', q ? '' : 'Игроки появятся, когда организатор создаст тур.')}</li>`;
-    html += list.map((p) => `<li><a class="item" href="${playerHref(p.name)}">${avatar(p.name)}
+    html += list.map((p) => `<li><a class="item ${isMe(p.name) ? 'me' : ''}" href="${playerHref(p.name)}">${avatar(p.name)}
         <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${nWord(p.games, 'матч', 'матча', 'матчей')} · ${p.goals} г · ${p.assists} п</span></span>
         <span class="val">${valOf(p)}</span></a></li>`).join('');
     html += idle.map((p) => `<li><a class="item" href="${playerHref(p.name)}">${avatar(p.name)}<span class="main"><span class="nm">${esc(p.name)}</span><span class="sub">ещё не играл</span></span></a></li>`).join('');
@@ -551,7 +594,8 @@
     let html = backRow('#/players') + `<section style="display:grid;justify-items:center;gap:12px;text-align:center;padding:8px 0 22px">
       ${avatar(name, 'xl')}
       <h1 class="title">${esc(name)}${gkTag(name)}</h1>
-      ${p ? `<div class="hero-pills"><span><b>${p.pos}</b> место</span><span><b>${p.rating}</b> рейтинг</span><span><b>${fix1(p.ppg)}</b> очк/матч</span></div>` : '<p class="hint">Ещё не играл</p>'}</section>`;
+      ${p ? `<div class="hero-pills"><span><b>${p.pos}</b> место</span><span><b>${p.rating}</b> рейтинг</span><span><b>${fix1(p.ppg)}</b> очк/матч</span></div>` : '<p class="hint">Ещё не играл</p>'}
+      ${known ? (isMe(name) ? `<button class="link-quiet" data-act="unset-me">Это не я</button>` : `<button class="glass-btn" data-act="set-me" data-name="${esc(name)}">${icon('check')}Это я</button>`) : ''}</section>`;
 
     if (p) {
       const tiles = [['Матчи', p.games], ['Очки', p.pts], ['Побед', Math.round(p.winPct) + '%'], ['Голы', p.goals], ['Пасы', p.assists], ['Сухие', p.cs]];
@@ -611,7 +655,7 @@
         ${items.length > 5 ? `<button class="more" data-act="expand" data-key="${key}">${open ? 'Свернуть' : `Показать всех · ${items.length}`}${icon('chev')}</button>` : ''}
         ${note ? `<p class="caption" style="padding-top:${items.length > 5 ? 0 : 6}px">${note}</p>` : ''}</section>`;
     };
-    const prow = (val, label, sub) => (p, i) => `<li><a class="item" href="${playerHref(p.name)}"><span class="rank">${i + 1}</span>${avatar(p.name)}
+    const prow = (val, label, sub) => (p, i) => `<li><a class="item ${isMe(p.name) ? 'me' : ''}" href="${playerHref(p.name)}"><span class="rank">${i + 1}</span>${avatar(p.name)}
       <span class="main"><span class="nm">${esc(p.name)}${gkTag(p.name)}</span><span class="sub">${sub(p)}</span></span>
       <span class="val"><b>${val(p)}</b>${label(p) ? `<span>${label(p)}</span>` : ''}</span></a></li>`;
     const sortBy = (f, filter) => [...st.list].filter(filter || ((p) => f(p) > 0)).sort((a, b) => f(b) - f(a) || a.games - b.games);
@@ -742,6 +786,7 @@
     document.querySelectorAll('.tabbar a').forEach((a) => { if (a.dataset.tab === tab) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     document.title = S.data.name ? `${S.data.name} · Футбольная лига` : 'Футбольная лига';
     updateLiveDot();
+    syncWakeLock();
   }
   function updateLiveDot() { $('#live-dot').hidden = !S.live; }
 
@@ -786,6 +831,7 @@
     },
     clock() {
       const L = S.live;
+      unlockAudio();
       if (L.run) { L.acc += Date.now() - L.run; L.run = null; } else L.run = Date.now();
       pushLive(); render();
     },
@@ -800,9 +846,11 @@
     'g-save'() {
       const g = S.goal;
       if (g.scorer === undefined && !g.own) g.scorer = null;
-      S.live.events.push({ team: g.team, scorer: g.scorer || null, assist: g.own ? null : g.assist, own: g.own, ms: g.ms });
+      const ev = { team: g.team, scorer: g.scorer || null, assist: g.own ? null : g.assist, own: g.own, ms: g.ms };
+      S.live.events.push(ev);
       S.goal = null;
       closeModal(); pushLive(); render();
+      if (!S.live.matchId) celebrate(S.live, ev);
     },
     'undo-goal'() { S.live.events.pop(); pushLive(); render(); },
     async finish() {
@@ -888,6 +936,18 @@
       if (ok) { S.draft = null; location.hash = '#/tour/' + enc(id); }
     },
 
+    // «Это я»
+    'pick-me'() { S.meQuery = ''; openModal(meModal); },
+    'set-me'(d) {
+      S.me = d.name; S.meSkip = false;
+      store.set('fl-me', d.name); store.del('fl-me-skip');
+      if (modalOpen()) closeModal();
+      toast('Отмечено: это вы');
+      render();
+    },
+    'unset-me'() { S.me = null; store.del('fl-me'); render(); },
+    'skip-me'() { S.meSkip = true; store.set('fl-me-skip', true); render(); },
+
     // данные
     export() {
       const blob = new Blob([JSON.stringify(S.data, null, 2)], { type: 'application/json' });
@@ -954,6 +1014,13 @@
       n.focus(); n.setSelectionRange(pos, pos);
     },
     'draft-date'(el) { if (el.value) S.draft.date = el.value; },
+    'me-search'(el) {
+      S.meQuery = el.value;
+      const pos = el.selectionStart;
+      refreshModal();
+      const n = document.querySelector('[data-input="me-search"]');
+      if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+    },
     import(el) {
       const file = el.files[0];
       if (!file) return;
@@ -992,15 +1059,111 @@
   });
   $('#backdrop').addEventListener('click', closeModal);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modalOpen()) closeModal(); });
-  window.addEventListener('hashchange', render);
+  window.addEventListener('hashchange', () => {
+    render();
+    // на экране матча обновляемся сразу и часто, на остальных — реже
+    if (location.hash.startsWith('#/live')) poll();
+    schedulePoll();
+  });
+
+  /* ---------- Момент гола ---------- */
+  const matchKey = (L) => L && `${L.tourId}|${L.n}|${L.a}|${L.b}`;
+  const TEAM_HEX = { R: '#ff453a', B: '#0a84ff', G: '#30d158', Y: '#ffd60a' };
+  const vibrate = (pattern) => { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) { /* не поддерживается */ } };
+
+  function celebrate(L, e) {
+    const s = liveScore(L);
+    const color = TEAM_HEX[e.team] || '#fff';
+    const title = e.scorer && isMe(e.scorer) && !e.own ? 'Ваш гол!' : e.assist && isMe(e.assist) ? 'Ваш пас!' : 'Гол!';
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reduce) {
+      const flash = document.createElement('div');
+      flash.className = 'goal-flash';
+      flash.style.setProperty('--c', color);
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 1400);
+    }
+    document.querySelectorAll('.goal-banner').forEach((x) => x.remove());
+    const b = document.createElement('div');
+    b.className = 'goal-banner';
+    b.style.setProperty('--c', color);
+    b.innerHTML = `${kit(e.team, 'l')}<div><b>${title}</b><span>${e.own ? `${esc(e.scorer || '')} в свои ворота` : `${esc(e.scorer || tn(e.team))}${e.assist ? ` <i>(${esc(e.assist)})</i>` : ''}`}</span></div>
+      <div class="sc">${s.a}:${s.b}</div>`;
+    document.body.appendChild(b);
+    requestAnimationFrame(() => b.classList.add('show'));
+    setTimeout(() => { b.classList.remove('show'); setTimeout(() => b.remove(), 400); }, 3200);
+    // перелистывание цифры счёта
+    const digit = document.querySelector(`.match-hero [data-side="${e.team}"]`);
+    if (digit && !reduce) { digit.classList.remove('bump'); void digit.offsetWidth; digit.classList.add('bump'); }
+    vibrate([60, 40, 120]);
+  }
+
+  // Сравнить старое и новое состояние матча: появился ли новый гол
+  function checkNewGoal(prev, next) {
+    if (!prev || !next || next.matchId || matchKey(prev) !== matchKey(next)) return;
+    if ((next.events || []).length > (prev.events || []).length) celebrate(next, next.events[next.events.length - 1]);
+  }
+
+  /* ---------- Сигнал «время вышло» ---------- */
+  let audioCtx = null;
+  function unlockAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audioCtx = audioCtx || new AC();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { audioCtx = null; }
+  }
+  function whistle() {
+    if (!audioCtx) return;
+    const t0 = audioCtx.currentTime;
+    [0, 0.32, 0.64].forEach((d, i) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'square';
+      o.frequency.setValueAtTime(i === 2 ? 2600 : 2900, t0 + d);
+      g.gain.setValueAtTime(0.0001, t0 + d);
+      g.gain.exponentialRampToValueAtTime(0.12, t0 + d + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + (i === 2 ? 0.55 : 0.22));
+      o.connect(g).connect(audioCtx.destination);
+      o.start(t0 + d); o.stop(t0 + d + 0.6);
+    });
+  }
+  function signalEnd() {
+    whistle();
+    vibrate([400, 150, 400]);
+    document.querySelectorAll('[data-clock]').forEach((el) => { el.classList.remove('ring'); void el.offsetWidth; el.classList.add('ring'); });
+    toast('Время вышло');
+  }
+
+  /* ---------- Экран не гаснет во время матча (для организатора) ---------- */
+  let wakeLock = null;
+  function syncWakeLock() {
+    const want = isEditor() && S.live && !S.live.matchId && location.hash.startsWith('#/live') && !document.hidden;
+    if (want && !wakeLock && navigator.wakeLock) {
+      wakeLock = 'pending';
+      navigator.wakeLock.request('screen').then((l) => {
+        wakeLock = l;
+        l.addEventListener('release', () => { wakeLock = null; });
+      }).catch(() => { wakeLock = null; });
+    } else if (!want && wakeLock && wakeLock !== 'pending') {
+      wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+  }
 
   /* ---------- Часы и обновления ---------- */
   setInterval(() => {
-    if (!S.live || S.live.matchId) return;
+    const L = S.live;
+    if (!L || L.matchId) return;
+    const over = elapsed(L) > (L.len || 420) * 1000;
     document.querySelectorAll('[data-clock]').forEach((el) => {
-      el.textContent = clockText(S.live);
-      el.classList.toggle('over', elapsed(S.live) > (S.live.len || 420) * 1000);
+      el.textContent = clockText(L);
+      el.classList.toggle('over', over);
     });
+    if (over && L.run && S.endSignaled !== matchKey(L)) {
+      S.endSignaled = matchKey(L);
+      signalEnd();
+    }
   }, 1000);
 
   let polling = false;
@@ -1013,8 +1176,10 @@
         await load();
         if (!modalOpen() && !/^#\/(new|roster)/.test(location.hash)) render();
       } else if (!isEditor() && JSON.stringify(r.live) !== JSON.stringify(S.live)) {
+        const prev = S.live;
         S.live = r.live;
         if (!modalOpen()) render();
+        checkNewGoal(prev, r.live);
       }
     } catch (e) { /* сеть пропала — попробуем позже */ }
     polling = false;
@@ -1023,9 +1188,9 @@
   function schedulePoll() {
     clearTimeout(pollTimer);
     const fast = S.live || location.hash.startsWith('#/live');
-    pollTimer = setTimeout(async () => { await poll(); schedulePoll(); }, fast ? 4000 : 30000);
+    pollTimer = setTimeout(async () => { await poll(); schedulePoll(); }, fast ? 4000 : 15000);
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { poll(); schedulePoll(); } });
+  document.addEventListener('visibilitychange', () => { syncWakeLock(); if (!document.hidden) { poll(); schedulePoll(); } });
 
   /* ---------- Старт ---------- */
   (async function boot() {
@@ -1033,7 +1198,7 @@
       await load();
       render();
     } catch (e) {
-      view.innerHTML = `<div class="section">${empty('📡', 'Не получилось загрузить лигу', 'Проверьте интернет и обновите страницу.')}</div>`;
+      view.innerHTML = `<section class="panel" style="margin-top:24px">${empty('ball', 'Не получилось загрузить лигу', 'Проверьте интернет и обновите страницу.')}</section>`;
     }
     schedulePoll();
   })();
